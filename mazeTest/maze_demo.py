@@ -1,15 +1,33 @@
+from maze_env import MazeEnv
+import tensorflow as tf
 from time import sleep
-from maze_env import MazeEnv, Action
-import keyboard
+from DQNModel import DQNModel
 
-env = MazeEnv(renderMode="human")
-percept = None
-running = True
-keyboard.on_press_key('w', lambda _: env.step(Action.UP))
-keyboard.on_press_key('a', lambda _: env.step(Action.LEFT))
-keyboard.on_press_key('s', lambda _: env.step(Action.DOWN))
-keyboard.on_press_key('d', lambda _: env.step(Action.RIGHT))
-keyboard.on_press_key('esc', lambda _: exit()) #huh?
+if __name__ == "__main__":
+    model = DQNModel(
+            learningRate=.9,
+            discountRate=.99,
+            epsilonFraction=1000
+        )
+    model.load_weights("checkpoints\MazeQLearningModelWithExperienceReplay_20231218_234226.tf") #TODO
 
-while running:
-    sleep(0.1)
+    env = MazeEnv(nCoins=10, startPosition="random", render_mode="human")
+    observation, _ = env.reset()
+    observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
+    model(observation)
+    totalReward=0
+    while True:
+        #prompt agent
+        action = model.act(observation)
+        print("action:", action)
+        #pass action to env, get next observation
+        observation, reward, terminated, truncated, _ = env.step(action)
+        observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
+        totalReward+=reward
+        #epoch ends, reset env, observation, & reward
+        if terminated or truncated:
+            print("Reward:", totalReward)
+            totalReward=0
+            observation, _ = env.reset()
+            observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
+        sleep(.01)

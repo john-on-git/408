@@ -4,18 +4,11 @@ from enum import Enum
 from threading import Thread
 from observer import Observable, Observer
 import random
-import sys
 
 #models
 class Square(Enum):
     EMPTY = 0,
     SOLID = 1
-class Action(Enum):
-    UP    = 0,
-    LEFT  = 1,
-    DOWN  = 2,
-    RIGHT = 3,
-    PASS  = 4
 
 class Entity():
     def __init__(self, coords) -> None:
@@ -28,84 +21,133 @@ class Coin(Entity):
         super().__init__(coords)
 
 class MazeModel(Observable):
-    
-    def __init__(self, squares : [[Square]], playerAvatar : Mover, nCoins : int, gameLength:int=None, scorePerCoin:int=1) -> None:
+    def __init__(self, squares : [[Square]], playerPosition : (str|tuple), nCoins : int, gameLength:int=None, scorePerCoin:int=1) -> None:
         super().__init__()
         #assert shape is ok (all rows must be the same length)
         WIDTH = len(squares[0])
         for row in squares:
             assert len(row) == WIDTH
         #coupling++ here but idk if it's worth fixing
-        self.SQUARES = squares
-        self.COINS = []
-        self.ENEMIES = []
-        self.PLAYER_AVATAR = playerAvatar
+        self.squares = squares
+        self.emptySquares = [] #pre-calculated for placing entities
+        for y in range(len(self.squares)):
+            for x in range(len(self.squares[y])):
+                if self.squares[y][x] == Square.EMPTY:
+                    self.emptySquares.append((y,x))
+
+        self.coins = []
+        self.enemies = []
+        if playerPosition=="random":
+            self.placePlayer()
+        else:
+            self.PLAYER_AVATAR = Mover(playerPosition)
+            
         self.time = 0
         self.GAME_LENGTH = gameLength
         self.score = 0
         self.SCORE_PER_COIN = scorePerCoin
 
-        self.emptySquares = [] #pre-calculated for placing entities
-        for x in range(len(self.SQUARES)):
-            for y in range(len(self.SQUARES[x])):
-                if self.SQUARES[x][y] == Square.EMPTY:
-                    self.emptySquares.append((x,y))
-
         for _ in range(nCoins): #add coins
             self.placeCoin()
-    def step(self, action : Action=Action.PASS) -> None:
-        def canMoveTo(coords):
+    def reset(self, squares : [[Square]], playerPosition : (str|tuple), nCoins : int) -> None:
+        self.squares = squares
+        if playerPosition=="random":
+            self.placePlayer()
+        else:
+            self.PLAYER_AVATAR = Mover(playerPosition)
+        self.coins.clear()
+        self.score = 0
+        self.time = 0
+        for _ in range(nCoins): #add coins
+            self.placeCoin()
+    def step(self, action : (0|1|2|3|4) = 4) -> None:
+        def canMoveTo(coords : tuple) -> bool:
             y,x = coords
-            return x>0 and y>0 and y<len(self.SQUARES) and x<len(self.SQUARES[0]) and self.SQUARES[y][x] == Square.EMPTY
+            return x>=0 and y>=0 and y<len(self.squares) and x<len(self.squares[0]) and self.squares[y][x] == Square.EMPTY
         
+        reward = 0
         self.time+=1 #advance time
         if self.GAME_LENGTH is None or self.time<self.GAME_LENGTH:
             markedForDelete = [] #things to be deleted this step
             #move player avatar
             match action:
-                case Action.UP:
-                    target = (self.PLAYER_AVATAR.coords[0]-1, self.PLAYER_AVATAR.coords[1])
-                case Action.LEFT:
-                    target = (self.PLAYER_AVATAR.coords[0], self.PLAYER_AVATAR.coords[1]-1)
-                case Action.DOWN:
-                    target = (self.PLAYER_AVATAR.coords[0]+1, self.PLAYER_AVATAR.coords[1])
-                case Action.RIGHT:
-                    target = (self.PLAYER_AVATAR.coords[0], self.PLAYER_AVATAR.coords[1]+1)
-                case Action.PASS:
-                    return
+                case 0:
+                    target = (self.PLAYER_AVATAR.coords[0]-1, self.PLAYER_AVATAR.coords[1]) #up
+                case 1:
+                    target = (self.PLAYER_AVATAR.coords[0], self.PLAYER_AVATAR.coords[1]-1) #left
+                case 2:
+                    target = (self.PLAYER_AVATAR.coords[0]+1, self.PLAYER_AVATAR.coords[1]) #down
+                case 3:
+                    target = (self.PLAYER_AVATAR.coords[0], self.PLAYER_AVATAR.coords[1]+1) #right
+                case 4:
+                    target = self.PLAYER_AVATAR.coords                                      #pass
+                case _:
+                    raise Exception("Got invalid action "+str(action)+". Expected (0|1|2|3|4).")
                 
             if canMoveTo(target):
                 self.PLAYER_AVATAR.coords = target
             #coin collection, spawn new coin
-                for coin in self.COINS:
+                for coin in self.coins:
                     if coin.coords == self.PLAYER_AVATAR.coords:
                         markedForDelete.append(coin)
+                        reward+=self.SCORE_PER_COIN
                         self.score+=self.SCORE_PER_COIN
             #enemy movement
             #check for loss
                          
             for entity in markedForDelete:
                 if type(entity) == Coin:
-                    self.COINS.remove(entity)
+                    self.coins.remove(entity)
                     self.placeCoin() #remember to replace it
                 #self.enemies.remove(entity)
         
         self.notify()
         
-        percept = None #TODO
-        reward = self.score
+        #reward = reward
+        logits = self.calcLogits()
         terminated = self.GAME_LENGTH is not None and (self.time>=self.GAME_LENGTH) #end of game because of time out
-        truncated = None #end of game because the player died
-        return (percept, reward, terminated, truncated)
-    def placeCoin(self) -> None:
+        truncated = False #end of game because the player died
+        info = None
+        return (logits, reward, terminated, truncated, info)
+    def calcLogits(self) -> [float]:
+        LOGIT_EMPTY  = 0.0
+        LOGIT_SOLID  = 1.0
+        LOGIT_PLAYER = 2.0
+        LOGIT_COIN   = 3.0
+        LOGIT_ENEMY  = 4.0
+        def calcLogit(y: int,x : int) -> float:
+            if self.squares[y][x] == Square.SOLID:
+                return LOGIT_SOLID
+            elif self.PLAYER_AVATAR.coords == (y,x):
+                return LOGIT_PLAYER
+            else:
+                for coin in self.coins:
+                    if coin.coords == (y,x):
+                        return LOGIT_COIN
+                for enemy in self.enemies:
+                    if enemy.coords == (y,x):
+                        return LOGIT_ENEMY
+                return LOGIT_EMPTY
+        #construct logits from world
+        logits = []
+        for y in range(len(self.squares)):
+            logits.append([None] * len(self.squares))
+            for x in range(len(logits[0])):
+                logits[y][x] = calcLogit(y,x)
+        return logits
+    def placePlayer(self) -> tuple:
         emptySquares = self.emptySquares.copy()
-
-        emptySquares.remove(self.PLAYER_AVATAR.coords)
-        for xs in [self.COINS, self.ENEMIES]:
+        for xs in [self.coins, self.enemies]:
             for x in xs:
                 emptySquares.remove(x.coords)
-
-        self.COINS.append(Coin(coords=random.choice(emptySquares)))
+        self.PLAYER_AVATAR = Mover(coords=random.choice(emptySquares))
+    def placeCoin(self) -> None:
+        emptySquares = self.emptySquares.copy()
+        emptySquares.remove(self.PLAYER_AVATAR.coords)
+        for xs in [self.coins, self.enemies]:
+            for x in xs:
+                emptySquares.remove(x.coords)
+        self.coins.append(Coin(coords=random.choice(emptySquares)))
     def notify(self) -> None:
         observer: Observer
         for observer in super().getObservers():
@@ -117,8 +159,8 @@ class MazeView(Observer):
         pygame.init()
         displayResolution = resolution
         self.screen = pygame.display.set_mode(displayResolution)
-        self.xSize = displayResolution[0]/len(world.SQUARES[0]) #horizontal size of squares
-        self.ySize = displayResolution[1]/len(world.SQUARES) #vertical size of squares
+        self.xSize = displayResolution[0]/len(world.squares[0]) #horizontal size of squares
+        self.ySize = displayResolution[1]/len(world.squares) #vertical size of squares
         self.squares = [None, []]
         self.players = [None, []]
         self.coins   = [None, []]
@@ -139,9 +181,9 @@ class MazeView(Observer):
         self.coins[0].blit(coinImage, (0,0))
         
         #create squares
-        for y in range(len(world.SQUARES)):
-            for x in range(len(world.SQUARES[y])):
-                if(world.SQUARES[y][x] == Square.EMPTY):
+        for y in range(len(world.squares)):
+            for x in range(len(world.squares[y])):
+                if(world.squares[y][x] == Square.EMPTY):
                     self.squares[1].append((x*self.xSize, y*self.ySize))
 
         #get player location
@@ -150,7 +192,7 @@ class MazeView(Observer):
         
         #get coin locations
         self.coins[1].clear()
-        for viewModel, entities in [(self.coins, world.COINS), (self.enemies, world.ENEMIES)]:
+        for viewModel, entities in [(self.coins, world.coins), (self.enemies, world.enemies)]:
             for entity in entities:
                 y,x = entity.coords
                 viewModel[1].append((x*self.xSize, y*self.ySize))
@@ -189,39 +231,41 @@ class MazeView(Observer):
             self.players[1].append((world.PLAYER_AVATAR.coords[1]*self.xSize, world.PLAYER_AVATAR.coords[0]*self.ySize))
             
             self.coins[1].clear()
-            for viewModel, entities in [(self.coins, world.COINS), (self.enemies, world.ENEMIES)]:
+            for viewModel, entities in [(self.coins, world.coins), (self.enemies, world.enemies)]:
                 for entity in entities:
                     y,x = entity.coords
                     viewModel[1].append((x*self.xSize, y*self.ySize))
 class MazeEnv():
-    def reset(self) -> None:
-        self.model.SQUARES = [ #contents of each square
-            [Square.SOLID, Square.SOLID, Square.SOLID, Square.SOLID, Square.SOLID],
-            [Square.SOLID, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.SOLID],
-            [Square.SOLID, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.SOLID],
-            [Square.SOLID, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.SOLID],
-            [Square.SOLID, Square.SOLID, Square.SOLID, Square.SOLID, Square.SOLID],
-        ]
-        self.model.PLAYER_AVATAR=Mover(coords=(2,2))
-    def __init__(self, renderMode : str) -> None:
-        self.humanRender = (renderMode=="human")
+    def reset(self,seed:int=None) -> None:
+        self.model.reset(
+            squares = [ #contents of each square
+                [Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY],
+                [Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY],
+                [Square.EMPTY, Square.EMPTY, Square.SOLID, Square.SOLID, Square.EMPTY, Square.EMPTY],
+                [Square.EMPTY, Square.EMPTY, Square.SOLID, Square.SOLID, Square.EMPTY, Square.EMPTY],
+                [Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY],
+                [Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY],
+            ],
+            playerPosition=self.startPosition,
+            nCoins=self.nCoins
+        )
+        return (self.model.calcLogits(), None)
+    def __init__(self, nCoins:int=3, startPosition:(str|tuple)="random", render_mode : (None|str)=None) -> None:
+        self.humanRender = (render_mode=="human")
+        self.nCoins=nCoins
+        self.startPosition = startPosition
         self.model = MazeModel(
             squares = [ #contents of each square
-                [Square.SOLID, Square.SOLID, Square.SOLID, Square.SOLID, Square.SOLID],
-                [Square.SOLID, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.SOLID],
-                [Square.SOLID, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.SOLID],
-                [Square.SOLID, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.SOLID],
-                [Square.SOLID, Square.SOLID, Square.SOLID, Square.EMPTY, Square.SOLID],
-                [Square.SOLID, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.SOLID],
-                [Square.SOLID, Square.EMPTY, Square.SOLID, Square.SOLID, Square.SOLID],
-                [Square.SOLID, Square.EMPTY, Square.SOLID, Square.EMPTY, Square.SOLID],
-                [Square.SOLID, Square.EMPTY, Square.SOLID, Square.EMPTY, Square.SOLID],
-                [Square.SOLID, Square.EMPTY, Square.SOLID, Square.EMPTY, Square.SOLID],
-                [Square.SOLID, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.SOLID],
-                [Square.SOLID, Square.SOLID, Square.SOLID, Square.SOLID, Square.SOLID],
+                [Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY],
+                [Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY],
+                [Square.EMPTY, Square.EMPTY, Square.SOLID, Square.SOLID, Square.EMPTY, Square.EMPTY],
+                [Square.EMPTY, Square.EMPTY, Square.SOLID, Square.SOLID, Square.EMPTY, Square.EMPTY],
+                [Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY],
+                [Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY],
             ],
-            playerAvatar=Mover(coords=(2,2)),
-            nCoins=3
+            playerPosition=self.startPosition,
+            nCoins=self.nCoins,
+            gameLength=100
         )
         if self.humanRender:
             self.view = MazeView(resolution=(500,500), world=self.model)
@@ -230,4 +274,5 @@ class MazeEnv():
     def step(self, action):
         return self.model.step(action)
     def close(self):
-        self.view.close()
+        if self.humanRender:
+            self.view.close()

@@ -41,7 +41,7 @@
             "name": "Python: pole_train.py",
             "type": "python",
             "request": "launch",
-            "program": "pole_train.py",
+            "program": "pole/pole_train.py",
             "console": "integratedTerminal",
             "justMyCode": true
         },

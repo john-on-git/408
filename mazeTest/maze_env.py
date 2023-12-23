@@ -172,12 +172,12 @@ class MazeView(Observer):
         
         #player surface
         self.players[0] = pygame.Surface((self.xSize, self.ySize))
-        playerImage = pygame.transform.scale(pygame.image.load("greenPersonSolid.png"), (self.xSize, self.ySize)) #TODO transparency doesn't work, probably a file format thing
+        playerImage = pygame.transform.scale(pygame.image.load("img/greenPersonSolid.png"), (self.xSize, self.ySize)) #TODO transparency doesn't work, probably a file format thing
         self.players[0].blit(playerImage, (0,0))
 
         #coin surface
         self.coins[0] = pygame.Surface((self.xSize, self.ySize))
-        coinImage = pygame.transform.scale(pygame.image.load("coinSolid.png"), (self.xSize, self.ySize)) #TODO transparency doesn't work, probably a file format thing
+        coinImage = pygame.transform.scale(pygame.image.load("img/coinSolid.png"), (self.xSize, self.ySize)) #TODO transparency doesn't work, probably a file format thing
         self.coins[0].blit(coinImage, (0,0))
         
         #create squares

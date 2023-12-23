@@ -4,44 +4,43 @@ from maze_env import MazeEnv
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from DQNModel import DQNModel
+from models.REINFORCEModel import REINFORCEModel
+from models.PPOModel import PPOModel
 
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    TARGET_EPOCHS_INIT = 100
+    TARGET_EPOCHS_INIT = 1000
 
     random.seed(RNG_SEED_INIT)
     tf.random.set_seed(RNG_SEED_INIT)
     np.random.seed(RNG_SEED_INIT)
 
     models = [
-        DQNModel(
-            learningRate=.75,    
-            discountRate=.75,
-            replayMemoryCapacity=10000,
-            epsilonFraction=100
-        )
+        PPOModel(.75, .75, epsilonFraction=10),
+        REINFORCEModel(.75)
     ]
     #models[0].load_weights("checkpoints\MazeQLearningModelWithExperienceReplay_20231218_234226.tf") #TODO
-    for model in models:
-        targetEpochs = TARGET_EPOCHS_INIT
-        env = MazeEnv(nCoins=10, startPosition="random")
-        
-        rngSeed = RNG_SEED_INIT
-        observation, _ = env.reset(seed=rngSeed)
-        observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
+    trainingRunning = True
+    targetEpochs = TARGET_EPOCHS_INIT
+    yss = []
+    while trainingRunning:
+        for model in models:
+            env = MazeEnv(nCoins=10, startPosition="random")
+            
+            rngSeed = RNG_SEED_INIT
+            observation, _ = env.reset(seed=rngSeed)
+            observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
 
-        rewardsOverall = []
-        epochs = 0
-        print("Training new ", type(model).__name__)
-        while True:
-            while epochs < targetEpochs:
+            rewardsOverall = []
+            epochs = 0
+            print("Training new ", type(model).__name__)
+            while epochs < targetEpochs: #for each epoch
                 Ss = []
                 As = []
                 Rs = []
                 t = 0
-                stop = False
-                while not stop:
+                epochRunning = True
+                while epochRunning: #for each time step in epoch
                     Ss.append(observation) #record observation for training
 
                     #prompt agent
@@ -67,30 +66,53 @@ if __name__ == "__main__":
                         Ss = []
                         As = []
                         Rs = []
-                        stop = True
+                        epochRunning = False
                         print("Epoch ", epochs, " Done (reward ", rewardsOverall[-1], ")", sep="")
                     observation = nextObservation
                     t+=1
                 epochs+=1
                 rngSeed+=1
-
-            n = input("enter number to extend training, non-numeric to end\n")
+            #finished training this model
+            yss.append(rewardsOverall)
+        
+        #finished training all models
+            
+        #save the models
+        for model in models:
             path = "checkpoints\\" + type(model).__name__ + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + ".tf"
             #path = "checkpoints\\mazeModel.tf"
             model.save_weights(path, overwrite=True)
-            if(n.isnumeric()):
-                targetEpochs+=int(n)
-            else:
-                break
-        env.close()
+        
+        #plot return over time for each model
+        for i in range(len(models)):
+            ys = yss[i]
+            x = range(len(ys))
             
-        #plot return over time
-        x = range(len(rewardsOverall))
-        y = rewardsOverall
-        plt.scatter(x,y, label=type(model).__name__)
-        m, c = np.polyfit(x,y,1)
-        plt.plot(m*x + c) #line of best fit
-    plt.legend()
-    plt.show()
+            #smooth the curve
+            smoothedYs = []
+            window = []
+            windowSize = max(len(ys)/200, 1)
+            for y in ys:
+                window.append(y)
+                if len(window)>windowSize:
+                    window.pop()
+                smoothedYs.append(sum(window)/windowSize)
+            
+            plt.plot(x,smoothedYs, label=type(models[i]).__name__)
+            #m, c = np.polyfit(x,ys,1)
+            #plt.plot(m*x + c) #line of best fit
+        plt.legend()
+        plt.show()
+        
+        #prompt to continue training
+        
+        n = input("enter number to extend training, non-numeric to end\n")
+        if(n.isnumeric()):
+            targetEpochs+=int(n)
+        else:
+            trainingRunning = False
+            env.close()
+            
+    
     exit()
    

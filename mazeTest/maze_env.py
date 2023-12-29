@@ -21,7 +21,7 @@ class Coin(Entity):
         super().__init__(coords)
 
 class MazeModel(Observable):
-    def __init__(self, squares : [[Square]], playerPosition : (str|tuple), nCoins : int, gameLength:int=None, scorePerCoin:int=1) -> None:
+    def __init__(self, squares : [[Square]], playerPosition : (str|tuple), nCoins : int, gameLength:int=None, scorePerCoin:int=10) -> None:
         super().__init__()
         #assert shape is ok (all rows must be the same length)
         WIDTH = len(squares[0])
@@ -46,6 +46,7 @@ class MazeModel(Observable):
         self.GAME_LENGTH = gameLength
         self.score = 0
         self.SCORE_PER_COIN = scorePerCoin
+        self.food = self.SCORE_PER_COIN
 
         for _ in range(nCoins): #add coins
             self.placeCoin()
@@ -58,13 +59,15 @@ class MazeModel(Observable):
         self.coins.clear()
         self.score = 0
         self.time = 0
+        self.food = self.SCORE_PER_COIN
         for _ in range(nCoins): #add coins
             self.placeCoin()
     def step(self, action : (0|1|2|3|4) = 4) -> None:
         def canMoveTo(coords : tuple) -> bool:
             y,x = coords
             return x>=0 and y>=0 and y<len(self.squares) and x<len(self.squares[0]) and self.squares[y][x] == Square.EMPTY
-        
+
+        self.food-=1
         reward = 0
         self.time+=1 #advance time
         if self.GAME_LENGTH is None or self.time<self.GAME_LENGTH:
@@ -99,6 +102,7 @@ class MazeModel(Observable):
                 if type(entity) == Coin:
                     self.coins.remove(entity)
                     self.placeCoin() #remember to replace it
+                    self.food+=self.SCORE_PER_COIN
                 #self.enemies.remove(entity)
         
         self.notify()
@@ -106,7 +110,7 @@ class MazeModel(Observable):
         #reward = reward
         logits = self.calcLogits()
         terminated = self.GAME_LENGTH is not None and (self.time>=self.GAME_LENGTH) #end of game because of time out
-        truncated = False #end of game because the player died
+        truncated = self.food<=0 #end of game because the player died
         info = None
         return (logits, reward, terminated, truncated, info)
     def calcLogits(self) -> [float]:

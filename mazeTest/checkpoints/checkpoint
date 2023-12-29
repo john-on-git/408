@@ -1,2 +1,2 @@
-model_checkpoint_path: "REINFORCEModel_20231221_192427.tf"
-all_model_checkpoint_paths: "REINFORCEModel_20231221_192427.tf"
+model_checkpoint_path: "PoleSARSAAgent.tf"
+all_model_checkpoint_paths: "PoleSARSAAgent.tf"

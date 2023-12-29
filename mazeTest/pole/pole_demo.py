@@ -1,14 +1,10 @@
 import gym
 import tensorflow as tf
-from PoleREINFORCEmodel import REINFORCEModel
+from pole_agents import *
 
 if __name__ == "__main__":
-    model = REINFORCEModel(
-        learningRate=.5,
-        discountRate=.99
-    )
-    model.load_weights("checkpoints\REINFORCEModel_2023-12-19_13-44-29.tf.index") #TODO
-
+    model = SARSAAgent(learningRate=.75, discountRate=.75, replayMemoryCapacity=1000)
+    model.load_weights("checkpoints\PoleSARSAAgent.tf") #TODO
 
     env = gym.make('CartPole-v1', render_mode="human")
     env.action_space.seed()

@@ -1,98 +1,118 @@
-import datetime
 import random
-import gym
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from PoleREINFORCEmodel import REINFORCEModel, REINFORCEModel2
-from PoleDQNModel import PoleDQNModel
+import gym
+from pole_agents import *
+
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    TARGET_EPOCHS_INIT = 1000
+    TARGET_EPOCHS_INIT = 125
 
+    agents = [
+        #REINFORCEAgent(learningRate=.01, discountRate=0.8, baseline=0),
+        #TestAgent(learningRate=.75, discountRate=.8, replayMemoryCapacity=1000, epsilon=2000),
+          DQNAgent(learningRate=0.1, discountRate=.8, replayMemoryCapacity=10000, epsilon=0.99, kernelSeed=RNG_SEED_INIT),
+        SARSAAgent(learningRate=0.1, discountRate=.8, replayMemoryCapacity=10000, epsilon=0.99, kernelSeed=RNG_SEED_INIT),
+        RandomAgent()
+    ]
+
+    trainingRunning = True
+    targetEpochs = TARGET_EPOCHS_INIT
+    yss = []
+    for i in range(len(agents)):
+        yss.append(list())
+    
     random.seed(RNG_SEED_INIT)
     tf.random.set_seed(RNG_SEED_INIT)
     np.random.seed(RNG_SEED_INIT)
 
-    models = [
-        PoleDQNModel(
-            learningRate=.5,
-            discountRate=.99,
-            replayMemoryCapacity=10000,
-        )
-    ]
-    for model in models:
-        rngSeed=RNG_SEED_INIT
-        targetEpochs = TARGET_EPOCHS_INIT
-        env = gym.make('CartPole-v1')
-        env.action_space.seed(rngSeed)
-        
-        
-        observation, _ = env.reset(seed=rngSeed)
-        observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
+    while trainingRunning:
+        for i in range(len(agents)):
+            env = gym.make('CartPole-v1')
+            rngSeed=RNG_SEED_INIT
+            env.action_space.seed(rngSeed)
+            observation, _ = env.reset(seed=rngSeed)
+            observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
+            epochs = 0
 
-        rewardsOverall = []
-        epochs = 0
-        print("Training new ", type(model).__name__)
-        while True:
-            while epochs < targetEpochs:
+            print("Training new ", type(agents[i]).__name__)
+            while epochs < targetEpochs: #for each epoch
                 Ss = []
                 As = []
                 Rs = []
-                t = 0
-                stop = False
-                while not stop:
+                epochRunning = True
+                while epochRunning: #for each time step in epoch
                     Ss.append(observation) #record observation for training
 
                     #prompt agent
-                    action = model.act(tf.convert_to_tensor(observation))
+                    action = agents[i].act(tf.convert_to_tensor(observation))
                     As.append(action) #record observation for training
 
                     #pass action to env, get next observation
                     nextObservation, reward, terminated, truncated, _ = env.step(action)
-                    Rs.append(reward) #record observation for training
+                    Rs.append(float(reward)) #record observation for training
                     
                     nextObservation = tf.convert_to_tensor(nextObservation)
                     nextObservation = tf.expand_dims(nextObservation,0)
 
-                    model.handleStep(terminated or truncated, Ss, As, Rs,) #template method pattern 🤓
+                    agents[i].handleStep(terminated or truncated, Ss, As, Rs)
                     
                     if terminated or truncated:
                         nextObservation, _ = env.reset(seed=rngSeed)
                         nextObservation = tf.convert_to_tensor(nextObservation)
                         nextObservation = tf.expand_dims(nextObservation,0)
                         
-                        #calc overall reward for graph
-                        rewardsOverall.append(sum(Rs))
+                        yss[i].append(sum(Rs)) #calc overall reward for graph
                         Ss = []
                         As = []
                         Rs = []
-                        stop = True
+                        epochRunning = False
+                        print("Epoch ", epochs, " Done (reward ", yss[i][-1], ")", sep="")
                     observation = nextObservation
-                    t+=1
                 epochs+=1
                 rngSeed+=1
-                print("Epoch ", epochs, " Done (duration ", t, ")", sep="")
-
+            #finished training this agent
+        
+        #finished training all agents
             
-
-            n = input("enter number to extend training, non-numeric to end\n")
-            if(n.isnumeric()):
-                targetEpochs+=int(n)
-            else:
-                path = "checkpoints\\" + type(model).__name__ + "_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".tf"
-                #path = "checkpoints\\" + type(model).__name__ + "_" + str(TARGET_EPOCHS_INIT) + ".tf"
-                model.save_weights(path, overwrite=True)
-                #plot return over time
-                x = range(len(rewardsOverall))
-                y = rewardsOverall
-                plt.scatter(x,y, label=type(model).__name__)
-                m, c = np.polyfit(x,y,1)
-                plt.plot(m*x + c) #line of best fit
-                env.close()
-                break
+        #save the agents
+        for agent in agents:
+            #path = "checkpoints\\" + type(agent).__name__ + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + ".tf"
+            path = "checkpoints\\" + "Pole" + type(agent).__name__ + ".tf"
+            agent.save_weights(path, overwrite=True)
+        
+        #plot return over time for each agent
+        plt.clf() #clear previous graph
+        for i in range(len(agents)):
+            ys = yss[i]
+            x = range(len(ys))
+            
+            #smooth the curve
+            smoothedYs = []
+            window = []
+            windowSize = 5#max(len(ys)/200, 1)
+            for y in ys:
+                window.append(y)
+                if len(window)>windowSize:
+                    window.pop(0)
+                smoothedYs.append(sum(window)/windowSize)
+            
+            plt.plot(x,smoothedYs, label=type(agents[i]).__name__)
+            #m, c = np.polyfit(x,ys,1)
+            #plt.plot(m*x + c) #line of best fit
+        plt.legend()
+        plt.show()
+        
+        #prompt to continue training
+        
+        n = input("enter number to extend training, non-numeric to end\n")
+        if(n.isnumeric()):
+            targetEpochs+=int(n)
+        else:
+            trainingRunning = False
+            env.close()
+            
     
-    plt.legend()
-    plt.show()        
     exit()
    

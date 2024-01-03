@@ -79,13 +79,15 @@ class REINFORCEAgent(Model):
                 self.train_step(eligibilityTraces, sumOfDiscountedAndNormalizedFutureRewards(self.discountRate, rewardsThisEpoch[i:]))
 
 class MonteCarloAgent(Model):
-    def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, epsilon=0):
+    def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, replayFraction=5, epsilon=0, epsilonDecay=1):
         super().__init__()
         self.replayMemorySs = []
         self.replayMemoryAs  = []
         self.replayMemoryRs  = []
         self.replayMemoryCapacity = replayMemoryCapacity
+        self.replayFraction = replayFraction
         self.epsilon = epsilon
+        self.epsilonDecay = epsilonDecay
         self.discountRate = np.float32(discountRate)
         self.modelLayers = [
             layers.Flatten(input_shape=(4,)),
@@ -95,25 +97,27 @@ class MonteCarloAgent(Model):
         ]
         self.compile(
             optimizer=tf.optimizers.Adam(learning_rate=learningRate),
-            metrics="loss"
+            metrics="loss",
         )
     def call(self, observation):
         for layer in self.modelLayers:
             observation = layer(observation)
         return observation
     def act(self, s):
+        self.epsilon*=self.epsilonDecay
         if random.random()<self.epsilon: #chance to act randomly
             return random.choice([0,1])
         else:
             return int(tf.argmax(self(s)[0])) #follow greedy policy
     def train_step(self, x):
         s, a, r = x
+        @tf.function
         def l(s,a,r): #from atari paper
             x = r-self(s)[0][a]
             return (x*x)
         
         self.optimizer.minimize(lambda: l(s,a,r), self.trainable_weights)
-        return {}
+        return {"loss":l(s,a,r)}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch):
         def sumOfDiscountedFutureRewards(discountRate, futureRewards):
             sumOfDiscountedFutureRewards = futureRewards[0]
@@ -137,16 +141,16 @@ class MonteCarloAgent(Model):
             miniBatchAs  = []
             miniBatchRs  = []
             
-            for i in random.sample(range(len(self.replayMemorySs)), min(len(self.replayMemorySs), int(self.replayMemoryCapacity/5))):
+            for i in random.sample(range(len(self.replayMemorySs)), min(len(self.replayMemorySs), int(self.replayMemoryCapacity/self.replayFraction))):
                 miniBatchS1s.append(self.replayMemorySs[i])
                 miniBatchAs.append(self.replayMemoryAs[i])
                 miniBatchRs.append(self.replayMemoryRs[i])
             dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs))
-            self.fit(dataset, batch_size=1) #train on the minitbatch
+            self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100))) #train on the minitbatch
 
 #Replay method from Playing Atari with Deep Reinforcement Learning, Mnih et al (Algorithm 1).
 class DQNAgent(Model):  
-    def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, replayFraction=5, epsilon=0, kernelSeed=None):
+    def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, replayFraction=5, epsilon=0, epsilonDecay=1):
         super().__init__()
         self.replayMemoryS1s = []
         self.replayMemoryA1s = []   
@@ -155,13 +159,13 @@ class DQNAgent(Model):
         self.replayMemoryCapacity = replayMemoryCapacity
         self.replayFraction = replayFraction
         self.epsilon = epsilon
+        self.epsilonDecay = epsilonDecay
         self.discountRate = np.float32(discountRate)
         self.modelLayers = [
-            layers.Flatten(input_shape=(1, 4)),
-            layers.Dense(4, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=kernelSeed)),
-            layers.Dense(16, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=(kernelSeed if kernelSeed==None else kernelSeed+1))),
-            layers.Dense(32, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=(kernelSeed if kernelSeed==None else kernelSeed+2))),
-            layers.Dense(2, activation=None, kernel_initializer=tf.initializers.RandomNormal(seed=(kernelSeed if kernelSeed==None else kernelSeed+3)))
+            layers.Flatten(input_shape=(4,)),
+            layers.Dense(4, activation=tf.nn.sigmoid),
+            layers.Dense(8, activation=tf.nn.sigmoid),
+            layers.Dense(2)
         ]
         self.compile(
             optimizer=tf.optimizers.Adam(
@@ -174,7 +178,7 @@ class DQNAgent(Model):
             observation = layer(observation)
         return observation
     def act(self, s):
-        self.epsilon *= .9995 #epsilon decay
+        self.epsilon *= self.epsilonDecay
         if random.random()<self.epsilon: #chance to act randomly
             return random.choice([0,1])
         else:
@@ -222,7 +226,7 @@ class DQNAgent(Model):
 
 #same as above but SARSA instead
 class SARSAAgent(Model):
-    def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, epsilon=0, kernelSeed=None):
+    def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, replayFraction=5, epsilon=0, epsilonDecay=1):
         super().__init__()
         self.replayMemoryS1s = []
         self.replayMemoryA1s = []
@@ -230,13 +234,15 @@ class SARSAAgent(Model):
         self.replayMemoryS2s = []
         self.replayMemoryA2s = []
         self.replayMemoryCapacity = replayMemoryCapacity
+        self.replayFraction = replayFraction
         self.epsilon = epsilon
+        self.epsilonDecay = epsilonDecay
         self.discountRate = np.float32(discountRate)
         self.modelLayers = [
             layers.Flatten(input_shape=(4,)),
-            layers.Dense(4, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=kernelSeed)),
-            layers.Dense(16, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=kernelSeed+2)),
-            layers.Dense(2, activation=tf.nn.relu, kernel_initializer=tf.initializers.RandomNormal(seed=kernelSeed+3))
+            layers.Dense(4, activation=tf.nn.sigmoid),
+            layers.Dense(16, activation=tf.nn.sigmoid),
+            layers.Dense(2, activation=tf.nn.relu)
         ]
         self.compile(
             optimizer=tf.optimizers.Adam(
@@ -249,7 +255,7 @@ class SARSAAgent(Model):
             observation = layer(observation)
         return observation
     def act(self, s):
-        self.epsilon *= .999 #epsilon decay
+        self.epsilon *= self.epsilonDecay #epsilon decay
         if random.random()<self.epsilon: #chance to act randomly
             return random.choice([0,1])
         else:
@@ -287,14 +293,14 @@ class SARSAAgent(Model):
                 miniBatchS2s = []
                 miniBatchA2s = []
                 
-                for i in random.sample(range(len(self.replayMemoryS1s)), min(len(self.replayMemoryS1s), int(self.replayMemoryCapacity/5))):
+                for i in random.sample(range(len(self.replayMemoryS1s)), min(len(self.replayMemoryS1s), int(self.replayMemoryCapacity/self.replayFraction))):
                     miniBatchS1s.append(self.replayMemoryS1s[i])
                     miniBatchAs.append(self.replayMemoryA1s[i])
                     miniBatchRs.append(self.replayMemoryRs[i])
                     miniBatchS2s.append(self.replayMemoryS2s[i])
                     miniBatchA2s.append(self.replayMemoryA2s[i])
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s, miniBatchA2s))
-                self.fit(dataset, batch_size=int(self.replayMemoryCapacity/500)) #train on the minibatch
+                self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100))) #train on the minibatch
 
 class ActorCriticAgent (Model):
     def __init__(self, learningRate, discountRate, epsilon=0, kernelSeed=None):
@@ -303,9 +309,9 @@ class ActorCriticAgent (Model):
         self.discountRate = np.float32(discountRate)
         self.actorLayers = [
             layers.Flatten(input_shape=(1, 4)),
-            layers.Dense(4, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=kernelSeed)),
-            layers.Dense(8, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=kernelSeed+2)),
-            layers.Dense(2, activation=tf.nn.relu, kernel_initializer=tf.initializers.RandomNormal(seed=kernelSeed+3))
+            layers.Dense(4, activation=tf.nn.sigmoid),
+            layers.Dense(8, activation=tf.nn.sigmoid),
+            layers.Dense(2, activation=tf.nn.relu)
         ]
         self.criticLayers = [
         ]

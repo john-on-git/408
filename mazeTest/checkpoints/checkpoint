@@ -1,2 +1,2 @@
-model_checkpoint_path: "PoleMonteCarloAgent.tf"
-all_model_checkpoint_paths: "PoleMonteCarloAgent.tf"
+model_checkpoint_path: "PoleDQNAgent.tf"
+all_model_checkpoint_paths: "PoleDQNAgent.tf"

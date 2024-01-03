@@ -7,13 +7,13 @@ from pole_agents import *
 
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    TARGET_EPOCHS_INIT = 25
+    TARGET_EPOCHS_INIT = 100
 
     agents = [
         #REINFORCEAgent(learningRate=.01, discountRate=0.8, baseline=0),
-        MonteCarloAgent(learningRate=.75, discountRate=.8, replayMemoryCapacity=1000),
-        #SARSAAgent(learningRate=0.5, discountRate=.8, replayMemoryCapacity=5000, epsilon=0.8, kernelSeed=RNG_SEED_INIT),
-        #DQNAgent(learningRate=0.00025, discountRate=.8, replayMemoryCapacity=50000, replayFraction=200, epsilon=0.25, kernelSeed=RNG_SEED_INIT),
+        #MonteCarloAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.5, epsilonDecay=.999),
+        #SARSAAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.5, epsilonDecay=.999),
+        DQNAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.5, epsilonDecay=.999),
         RandomAgent()
     ]
 

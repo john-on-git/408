@@ -7,13 +7,13 @@ from maze_agents import *
 
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    TARGET_EPOCHS_INIT = 500
+    TARGET_EPOCHS_INIT = 50
 
     agents = [
-        REINFORCEAgent(learningRate=.01, discountRate=.75, baseline=0),
+        #REINFORCEAgent(learningRate=.01, discountRate=.75, baseline=0),
         #TestAgent(learningRate=.75, discountRate=.75, replayMemoryCapacity=10000, replayMemoryFraction=20, epsilon=2),
         #SARSAAgent(learningRate=.75, discountRate=.75, replayMemoryCapacity=1000, epsilonFraction=20),
-        #DQNAgent(learningRate=.75, discountRate=.75, replayMemoryCapacity=1000, epsilonFraction=20),
+        DQNAgent(learningRate=0.5, discountRate=.8, replayMemoryCapacity=5000, epsilon=0.99, kernelSeed=RNG_SEED_INIT),
         RandomAgent()
     ]
 
@@ -57,7 +57,7 @@ if __name__ == "__main__":
                         explored.add(observation.ref())
                         reward+=1
 
-                    Rs.append(float(reward)) #record observation for training
+                    Rs.append(float(-reward)) #record observation for training
                     
                     nextObservation = tf.convert_to_tensor(nextObservation)
                     nextObservation = tf.expand_dims(nextObservation,0)

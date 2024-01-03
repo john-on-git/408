@@ -3,8 +3,8 @@ import tensorflow as tf
 from pole_agents import *
 
 if __name__ == "__main__":
-    model = SARSAAgent(learningRate=.75, discountRate=.75, replayMemoryCapacity=1000)
-    model.load_weights("checkpoints\PoleSARSAAgent.tf") #TODO
+    model = DQNAgent(0,0,0,0)
+    model.load_weights("checkpoints\PoleDQNAgent.tf") #TODO
 
     env = gym.make('CartPole-v1', render_mode="human")
     env.action_space.seed()
@@ -16,6 +16,7 @@ if __name__ == "__main__":
     while True:
         #prompt agent
         action = model.act(tf.convert_to_tensor(observation))
+        print("action:", action)
 
         #pass action to env, get next observation
         observation, reward, terminated, truncated, _ = env.step(action)

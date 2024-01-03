@@ -1,2 +1,2 @@
-model_checkpoint_path: "PoleSARSAAgent.tf"
-all_model_checkpoint_paths: "PoleSARSAAgent.tf"
+model_checkpoint_path: "PoleMonteCarloAgent.tf"
+all_model_checkpoint_paths: "PoleMonteCarloAgent.tf"

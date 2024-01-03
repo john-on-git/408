@@ -4,8 +4,8 @@ from time import sleep
 from maze_agents import *
 
 if __name__ == "__main__":
-    model = TestAgent(learningRate=.75, discountRate=.75, replayMemoryCapacity=1000, epsilon=999)
-    model.load_weights("checkpoints\MazeTestAgent.tf") #TODO
+    model = DQNAgent(0,0,0,0)
+    model.load_weights("checkpoints\MazeDQNAgent.tf") #TODO
 
     env = MazeEnv(nCoins=10, startPosition="random", render_mode="human")
     observation, _ = env.reset()

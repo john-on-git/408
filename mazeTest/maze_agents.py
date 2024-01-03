@@ -82,50 +82,49 @@ class REINFORCEAgent(Model):
                 self.train_step(eligibilityTraces, sumOfDiscountedFutureRewards(self.discountRate, rewardsThisEpoch[i:]))
 
 #Replay method from Playing Atari with Deep Reinforcement Learning, Mnih et al (Algorithm 1).
-class DQNAgent(Model):
-    def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, epsilon=0):
+class DQNAgent(Model):  
+    def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, epsilon=0, kernelSeed=None):
         super().__init__()
         self.replayMemoryS1s = []
-        self.replayMemoryA1s = []
+        self.replayMemoryA1s = []   
         self.replayMemoryRs  = []
         self.replayMemoryS2s = []
         self.replayMemoryCapacity = replayMemoryCapacity
         self.epsilon = epsilon
-        self.learningRate = np.float32(learningRate)
         self.discountRate = np.float32(discountRate)
         self.modelLayers = [
-            #layers.ZeroPadding2D(padding=(100,100)),
-            layers.Flatten(input_shape=(1, 5, 5)),
-            layers.Dense(16, activation=tf.nn.relu),
-            layers.Dense(32, activation=tf.nn.relu),
-            layers.Dense(4, activation=tf.nn.sigmoid)
+            layers.Flatten(input_shape=(1, 4)),
+            layers.Dense(4, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=kernelSeed)),
+            layers.Dense(16, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=(kernelSeed if kernelSeed==None else kernelSeed+1))),
+            layers.Dense(32, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=(kernelSeed if kernelSeed==None else kernelSeed+2))),
+            layers.Dense(5, activation=None, kernel_initializer=tf.initializers.RandomNormal(seed=(kernelSeed if kernelSeed==None else kernelSeed+3)))
         ]
         self.compile(
-            optimizer=tf.optimizers.Adam(learning_rate=learningRate),
-            metrics="loss"
+            optimizer=tf.optimizers.Adam(
+                learning_rate = learningRate
+            ),
+            metrics=["loss"]
         )
     def call(self, observation):
         for layer in self.modelLayers:
             observation = layer(observation)
         return observation
-    def act(self, observation):
+    def act(self, s):
+        self.epsilon *= .999 #epsilon decay
         if random.random()<self.epsilon: #chance to act randomly
-            return random.choice([0,1,2,3,4])
+            return random.choice([0,1,2,3])
         else:
-            return int(tf.argmax(tf.reshape(self(observation), shape=(4,1)))) #follow greedy policy
-    def train_step(self, xs):
-        #s1, _, r, s2, _ = x
-        s1 = xs[0]
-        a  = xs[1]
-        r  = xs[2]
-        s2 = xs[3]
-        def l(s1,a,r,s2): #from atari paper
-            yi = (r+self.discountRate*tf.reduce_max(self(s2))) * self.learningRate #approximation of the actual Q-value: (real reward) plus (the model's prediction for the sum of future rewards)
-            x = yi-tf.reshape(self(s1), shape=(4,1))[a] #subtract the model's prediction for the sum of future rewards
-            return -(x*x) #invert, because this is the reward, but TF is trying to minimize it
-        
+            return int(tf.argmax(self(s)[0])) #follow greedy policy
+    def train_step(self, x):
+        @tf.function
+        def l(s1,a1,r,s2): #from atari paper    
+            q2 = self.discountRate*tf.reduce_max(self(s2)) #estimated q-value for on-policy action for s2
+            q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
+            return tf.math.squared_difference(r+q2, q1) #calculate error between prediction and (approximated) label
+
+        s1, a, r, s2 = x
         self.optimizer.minimize(lambda: l(s1,a,r,s2), self.trainable_weights)
-        return {}
+        return {"loss": l(s1,a,r,s2)}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch):
         if len(observationsThisEpoch)>1: #if we have a transition to add
             #add the transition
@@ -153,6 +152,7 @@ class DQNAgent(Model):
                     miniBatchS2s.append(self.replayMemoryS2s[i])
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s))
                 self.fit(dataset, batch_size=int(self.replayMemoryCapacity/500)) #train on the minitbatch
+
 
 #same as above but SARSA instead
 class SARSAAgent(Model):

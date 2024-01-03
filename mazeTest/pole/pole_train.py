@@ -7,18 +7,20 @@ from pole_agents import *
 
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    TARGET_EPOCHS_INIT = 125
+    TARGET_EPOCHS_INIT = 25
 
     agents = [
         #REINFORCEAgent(learningRate=.01, discountRate=0.8, baseline=0),
-        #TestAgent(learningRate=.75, discountRate=.8, replayMemoryCapacity=1000, epsilon=2000),
-          DQNAgent(learningRate=0.1, discountRate=.8, replayMemoryCapacity=10000, epsilon=0.99, kernelSeed=RNG_SEED_INIT),
-        SARSAAgent(learningRate=0.1, discountRate=.8, replayMemoryCapacity=10000, epsilon=0.99, kernelSeed=RNG_SEED_INIT),
+        MonteCarloAgent(learningRate=.75, discountRate=.8, replayMemoryCapacity=1000),
+        #SARSAAgent(learningRate=0.5, discountRate=.8, replayMemoryCapacity=5000, epsilon=0.8, kernelSeed=RNG_SEED_INIT),
+        #  DQNAgent(learningRate=0.00025, discountRate=.8, replayMemoryCapacity=50000, replayFraction=200, epsilon=0.25, kernelSeed=RNG_SEED_INIT),
         RandomAgent()
     ]
+    agents[0].load_weights("checkpoints\PoleDQNAgent.tf") #TODO
 
     trainingRunning = True
     targetEpochs = TARGET_EPOCHS_INIT
+    resetEpochs = 0
     yss = []
     for i in range(len(agents)):
         yss.append(list())
@@ -34,8 +36,7 @@ if __name__ == "__main__":
             env.action_space.seed(rngSeed)
             observation, _ = env.reset(seed=rngSeed)
             observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
-            epochs = 0
-
+            epochs = resetEpochs
             print("Training new ", type(agents[i]).__name__)
             while epochs < targetEpochs: #for each epoch
                 Ss = []
@@ -68,7 +69,7 @@ if __name__ == "__main__":
                         As = []
                         Rs = []
                         epochRunning = False
-                        print("Epoch ", epochs, " Done (reward ", yss[i][-1], ")", sep="")
+                        print("Epoch ", epochs, " Done (r = ", yss[i][-1],", ε ≈ ", round(agents[i].epsilon, 2),")", sep="")
                     observation = nextObservation
                 epochs+=1
                 rngSeed+=1
@@ -108,6 +109,7 @@ if __name__ == "__main__":
         
         n = input("enter number to extend training, non-numeric to end\n")
         if(n.isnumeric()):
+            resetEpochs=epochs+1
             targetEpochs+=int(n)
         else:
             trainingRunning = False

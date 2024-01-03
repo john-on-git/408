@@ -23,7 +23,7 @@ class REINFORCEAgent(Model):
         self.discountRate = discountRate
         self.baseline = baseline
         self.modelLayers = [
-            layers.Flatten(input_shape=(1, 4)),
+            layers.Flatten(input_shape=(4,)),
             layers.Dense(4, activation=tf.nn.relu),
             layers.Dense(2, activation=tf.nn.softmax),
         ]
@@ -88,10 +88,10 @@ class MonteCarloAgent(Model):
         self.epsilon = epsilon
         self.discountRate = np.float32(discountRate)
         self.modelLayers = [
-            layers.Flatten(input_shape=(1, 4)),
-            layers.Dense(16, activation=tf.nn.relu),
-            layers.Dense(32, activation=tf.nn.relu),
-            layers.Dense(2, activation=tf.nn.sigmoid)
+            layers.Flatten(input_shape=(4,)),
+            layers.Dense(4, activation=tf.nn.sigmoid),
+            layers.Dense(8, activation=tf.nn.sigmoid),
+            layers.Dense(2)
         ]
         self.compile(
             optimizer=tf.optimizers.Adam(learning_rate=learningRate),
@@ -101,16 +101,16 @@ class MonteCarloAgent(Model):
         for layer in self.modelLayers:
             observation = layer(observation)
         return observation
-    def act(self, observation):
+    def act(self, s):
         if random.random()<self.epsilon: #chance to act randomly
             return random.choice([0,1])
         else:
-            return int(tf.argmax(tf.reshape(self(observation), shape=(2,1)))) #follow greedy policy
+            return int(tf.argmax(self(s)[0])) #follow greedy policy
     def train_step(self, x):
         s, a, r = x
         def l(s,a,r): #from atari paper
-            x = r-tf.reshape(self(s), shape=(2,1))[a]
-            return -(x*x) #invert, because this is the reward, but TF is trying to minimize it
+            x = r-self(s)[0][a]
+            return (x*x)
         
         self.optimizer.minimize(lambda: l(s,a,r), self.trainable_weights)
         return {}
@@ -142,7 +142,7 @@ class MonteCarloAgent(Model):
                 miniBatchAs.append(self.replayMemoryAs[i])
                 miniBatchRs.append(self.replayMemoryRs[i])
             dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs))
-            self.fit(dataset, batch_size=int(self.replayMemoryCapacity/500)) #train on the minitbatch
+            self.fit(dataset, batch_size=1) #train on the minitbatch
 
 #Replay method from Playing Atari with Deep Reinforcement Learning, Mnih et al (Algorithm 1).
 class DQNAgent(Model):  
@@ -233,10 +233,9 @@ class SARSAAgent(Model):
         self.epsilon = epsilon
         self.discountRate = np.float32(discountRate)
         self.modelLayers = [
-            layers.Flatten(input_shape=(1, 4)),
+            layers.Flatten(input_shape=(4,)),
             layers.Dense(4, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=kernelSeed)),
-            layers.Dense(8, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=kernelSeed+1)),
-            layers.Dense(8, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=kernelSeed+2)),
+            layers.Dense(16, activation=tf.nn.sigmoid, kernel_initializer=tf.initializers.RandomNormal(seed=kernelSeed+2)),
             layers.Dense(2, activation=tf.nn.relu, kernel_initializer=tf.initializers.RandomNormal(seed=kernelSeed+3))
         ]
         self.compile(

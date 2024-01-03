@@ -13,10 +13,9 @@ if __name__ == "__main__":
         #REINFORCEAgent(learningRate=.01, discountRate=0.8, baseline=0),
         MonteCarloAgent(learningRate=.75, discountRate=.8, replayMemoryCapacity=1000),
         #SARSAAgent(learningRate=0.5, discountRate=.8, replayMemoryCapacity=5000, epsilon=0.8, kernelSeed=RNG_SEED_INIT),
-        #  DQNAgent(learningRate=0.00025, discountRate=.8, replayMemoryCapacity=50000, replayFraction=200, epsilon=0.25, kernelSeed=RNG_SEED_INIT),
+        #DQNAgent(learningRate=0.00025, discountRate=.8, replayMemoryCapacity=50000, replayFraction=200, epsilon=0.25, kernelSeed=RNG_SEED_INIT),
         RandomAgent()
     ]
-    agents[0].load_weights("checkpoints\PoleDQNAgent.tf") #TODO
 
     trainingRunning = True
     targetEpochs = TARGET_EPOCHS_INIT

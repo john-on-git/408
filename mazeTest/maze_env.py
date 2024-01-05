@@ -205,11 +205,6 @@ class MazeView(Observer):
         self.running = False
     def main(self):
         while self.running:
-            # pygame.QUIT event means the user clicked X to close your window
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
-
             # fill the screen with a color to wipe away anything from last frame
             self.screen.fill(pygame.color.Color(70,70,70))
 
@@ -222,13 +217,15 @@ class MazeView(Observer):
             
             # flip() the display to put your work on screen
             pygame.display.flip()
-        pygame.quit()
+        exit()
     def open(self):
         self.running = True
-        thread = Thread(target=self.main, daemon=True)
-        thread.start()
+        self.thread = Thread(target=self.main, daemon=True)
+        self.thread.start()
     def close(self):
         self.running = False
+        self.thread.join()
+        pygame.quit()
     def update(self, world):
         if type(world) is MazeModel:
             self.players[1].clear()
@@ -255,7 +252,6 @@ class MazeEnv():
         )
         return (self.model.calcLogits(), None)
     def __init__(self, nCoins:int=3, startPosition:(str|tuple)="random", render_mode : (None|str)=None) -> None:
-        self.humanRender = (render_mode=="human")
         self.nCoins=nCoins
         self.startPosition = startPosition
         self.model = MazeModel(
@@ -271,12 +267,20 @@ class MazeEnv():
             nCoins=self.nCoins,
             gameLength=100
         )
-        if self.humanRender:
+        if (render_mode=="human"):
             self.view = MazeView(resolution=(500,500), world=self.model)
             self.model.addObserver(self.view)
             self.view.open()
+        else:
+            self.view = None
     def step(self, action):
+        if not self.view == None:
+            # pygame.QUIT event means the user clicked X to close your window
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.close()
         return self.model.step(action)
     def close(self):
-        if self.humanRender:
+        if not self.view == None:
             self.view.close()
+            self.view = None

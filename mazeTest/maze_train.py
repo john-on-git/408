@@ -7,21 +7,24 @@ from maze_agents import *
 
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    TARGET_EPOCHS_INIT = 50
+    TARGET_EPOCHS_INIT = 10
 
     agents = [
         #REINFORCEAgent(learningRate=.01, discountRate=.75, baseline=0),
-        #TestAgent(learningRate=.75, discountRate=.75, replayMemoryCapacity=10000, replayMemoryFraction=20, epsilon=2),
-        #SARSAAgent(learningRate=.75, discountRate=.75, replayMemoryCapacity=1000, epsilonFraction=20),
-        DQNAgent(learningRate=0.5, discountRate=.8, replayMemoryCapacity=5000, epsilon=0.99, kernelSeed=RNG_SEED_INIT),
+        MonteCarloAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.75, epsilonDecay=.999),
+        SARSAAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.75, epsilonDecay=.999),
+        DQNAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.75, epsilonDecay=.999),
         RandomAgent()
     ]
+    explored = []
 
     trainingRunning = True
-    targetEpochs = TARGET_EPOCHS_INIT
-    yss = []
+    targetEpochs = TARGET_EPOCHS_INIT #epochs to train for
+    resetEpochs = 0 #epoch count to continue from, when training is extended
+    yss = [] #list of rewards each epoch, for each agent
     for i in range(len(agents)):
         yss.append(list())
+        explored.append(set())
     
     random.seed(RNG_SEED_INIT)
     tf.random.set_seed(RNG_SEED_INIT)
@@ -29,12 +32,11 @@ if __name__ == "__main__":
 
     while trainingRunning:
         for i in range(len(agents)):
-            env = MazeEnv(nCoins=10, startPosition="random")
+            env = MazeEnv(nCoins=20, startPosition="random")
             rngSeed=RNG_SEED_INIT
             observation, _ = env.reset(seed=rngSeed)
             observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
-            epochs = 0
-            explored = set()
+            epochs = resetEpochs
 
             print("Training new ", type(agents[i]).__name__)
             while epochs < targetEpochs: #for each epoch
@@ -53,11 +55,11 @@ if __name__ == "__main__":
                     #pass action to env, get next observation
                     nextObservation, reward, terminated, truncated, _ = env.step(action)
 
-                    if not (observation.ref() in explored):
-                        explored.add(observation.ref())
+                    if not (observation.ref() in explored[i]):
+                        explored[i].add(observation.ref())
                         reward+=1
 
-                    Rs.append(float(-reward)) #record observation for training
+                    Rs.append(float(reward)) #record observation for training
                     
                     nextObservation = tf.convert_to_tensor(nextObservation)
                     nextObservation = tf.expand_dims(nextObservation,0)
@@ -114,6 +116,7 @@ if __name__ == "__main__":
         
         n = input("enter number to extend training, non-numeric to end\n")
         if(n.isnumeric()):
+            resetEpochs=epochs
             targetEpochs+=int(n)
         else:
             trainingRunning = False

@@ -7,7 +7,7 @@ if __name__ == "__main__":
     model = DQNAgent(0,0,0,0)
     model.load_weights("checkpoints\MazeDQNAgent.tf") #TODO
 
-    env = MazeEnv(nCoins=10, startPosition="random", render_mode="human")
+    env = MazeEnv(nCoins=20, startPosition="random", render_mode="human")
     observation, _ = env.reset()
     observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
     model(observation)

@@ -17,11 +17,14 @@ class RandomAgent():
     def save_weights(self, path, overwrite):
         pass
 
-class REINFORCEAgent(Model):
-    def __init__(self, learningRate, discountRate, baseline=0):
+class WeirdREINFORCEVariant(Model):
+    def __init__(self, learningRate, discountRate, baseline=0, epsilon=0, epsilonDecay=1):
         super().__init__()
         self.discountRate = discountRate
         self.baseline = baseline
+        self.epsilon = epsilon
+        self.epsilonDecay = epsilonDecay
+        self.learningRate = learningRate
         self.modelLayers = [
             layers.Flatten(input_shape=(4,)),
             layers.Dense(4, activation=tf.nn.relu),
@@ -29,7 +32,7 @@ class REINFORCEAgent(Model):
             layers.Dense(2, activation=tf.nn.softmax),
         ]
         self.compile(
-            optimizer=tf.optimizers.Adam(learning_rate=learningRate),
+            optimizer=tf.optimizers.Adam(),
             metrics="loss"
         )
     def call(self, observation):
@@ -37,9 +40,13 @@ class REINFORCEAgent(Model):
             observation = layer(observation)
         return observation
     def act(self, observation):
-        return int(tf.random.categorical(logits=self(observation),num_samples=1))
+        self.epsilon*=self.epsilonDecay
+        if random.random()<self.epsilon: #chance to act randomly
+            return random.choice([0,1])
+        else:
+            return int(tf.random.categorical(logits=self(observation),num_samples=1))
     def train_step(self, eligibilityTraces, r):
-        #calculate average eligibility trace
+        #calculate sum of eligibility traces
         grads = [None] * len(eligibilityTraces[0])
         for eligibilityTrace in eligibilityTraces:
             for i in range(len(eligibilityTrace)):
@@ -48,8 +55,8 @@ class REINFORCEAgent(Model):
                 else:
                     grads[i] += eligibilityTrace[i]
         
-        #multiply by reward
-        grads = map(lambda x: x*(float(r)-self.baseline), grads)
+        #multiply by learning rate, reward
+        grads = map(lambda x: self.learningRate * (float(r)-self.baseline)*x, grads)
         
         self.optimizer.apply_gradients(zip(
             grads,
@@ -59,7 +66,9 @@ class REINFORCEAgent(Model):
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         def characteristic_eligibilities(s, a):
             def lng(a, p): #probability mass function, it DOES make sense to calculate this all at once, says so in the paper
-                return -tfp.distributions.Categorical(p).log_prob(a) #take the negative. The optimizer is minimizing, which reverses the direction. We need to reverss it again.
+                #The model only converges if we invert the gradient but I have no idea why. 💀
+                #I think it's because this is intended to find the gradient w/r to a loss function so it subtracts it by default
+                return -tfp.distributions.Categorical(p).log_prob(a)
             with tf.GradientTape() as tape:
                 return tape.gradient(lng(a,self(s)), self.trainable_weights)
         def sumOfDiscountedAndNormalizedFutureRewards(discountRate, futureRewards):
@@ -78,6 +87,72 @@ class REINFORCEAgent(Model):
             for i in range(len(observationsThisEpoch)):
                 eligibilityTraces.append(characteristic_eligibilities(observationsThisEpoch[i], actionsThisEpoch[i]))
                 self.train_step(eligibilityTraces, sumOfDiscountedAndNormalizedFutureRewards(self.discountRate, rewardsThisEpoch[i:]))
+
+class REINFORCEAgent(Model):
+    def __init__(self, learningRate, discountRate=0, baseline=0, epsilon=0, epsilonDecay=1):
+        super().__init__()
+        self.discountRate = discountRate
+        self.baseline = baseline
+        self.epsilon = epsilon
+        self.epsilonDecay = epsilonDecay
+        self.learningRate = learningRate
+        self.modelLayers = [
+            layers.Flatten(input_shape=(4,)),
+            layers.Dense(4, activation=tf.nn.relu),
+            layers.Dense(8, activation=tf.nn.relu),
+            layers.Dense(2, activation=tf.nn.softmax),
+        ]
+        self.compile(
+            optimizer=tf.optimizers.Adam(),
+            metrics="loss"
+        )
+    def call(self, observation):
+        for layer in self.modelLayers:
+            observation = layer(observation)
+        return observation
+    def act(self, observation):
+        self.epsilon*=self.epsilonDecay
+        if random.random()<self.epsilon: #chance to act randomly
+            return random.choice([0,1])
+        else:
+            return int(tf.random.categorical(logits=self(observation),num_samples=1))
+    def train_step(self, eligibilityTraces, r):
+        #calculate sum of eligibility traces
+        grads = [None] * len(eligibilityTraces[0])
+        for eligibilityTrace in eligibilityTraces:
+            for i in range(len(eligibilityTrace)):
+                if grads[i] is None:
+                    grads[i] = eligibilityTrace[i]
+                else:
+                    grads[i] += eligibilityTrace[i]
+        
+        #multiply by learning rate, reward
+        grads = map(lambda x: self.learningRate * (r-self.baseline) * x, grads)
+        
+        self.optimizer.apply_gradients(zip(
+            grads,
+            self.trainable_weights
+        )) #update weights
+        return {"loss": (self.baseline-r)}
+    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
+        def characteristic_eligibilities(s, a):
+            def lng(a, p): #probability mass function, it DOES make sense to calculate this all at once, says so in the paper
+                #The model only converges if we invert the gradient but I have no idea why. 💀
+                #I think it's because apply_gradients is intended to apply gradient w/r to a loss function so it subtracts it by default
+                #(could also be inverted elsewhere but I think doing it here is clearest)
+                return -tfp.distributions.Categorical(p).log_prob(a)
+            with tf.GradientTape() as tape:
+                return tape.gradient(lng(a,self(s)), self.trainable_weights)
+        #epoch ends, reset env, observation, & reward
+        if endOfEpoch:
+            #train model
+            #zip observations & rewards, pass to fit
+            eligibilityTraces = []
+            
+            for i in range(len(observationsThisEpoch)):
+                eligibilityTraces.append(characteristic_eligibilities(observationsThisEpoch[i], actionsThisEpoch[i]))
+            
+            self.train_step(eligibilityTraces, float(sum(rewardsThisEpoch)))
 
 class MonteCarloAgent(Model):
     def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, replayFraction=5, epsilon=0, epsilonDecay=1):

@@ -62,7 +62,7 @@ class MazeModel(Observable):
         self.food = self.SCORE_PER_COIN
         for _ in range(nCoins): #add coins
             self.placeCoin()
-    def step(self, action : (0|1|2|3|4) = 4) -> None:
+    def step(self, action : (0|1|2|3|4) = 4) -> (tuple, int, bool, bool, None):
         def canMoveTo(coords : tuple) -> bool:
             y,x = coords
             return x>=0 and y>=0 and y<len(self.squares) and x<len(self.squares[0]) and self.squares[y][x] == Square.EMPTY

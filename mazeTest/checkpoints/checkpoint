@@ -1,2 +1,2 @@
-model_checkpoint_path: "MazeDQNAgent.tf"
-all_model_checkpoint_paths: "MazeDQNAgent.tf"
+model_checkpoint_path: "PoleREINFORCEAgentEndROnly.tf"
+all_model_checkpoint_paths: "PoleREINFORCEAgentEndROnly.tf"

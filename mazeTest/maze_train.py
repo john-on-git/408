@@ -7,16 +7,16 @@ from maze_agents import *
 
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    TARGET_EPOCHS_INIT = 10
+    TARGET_EPOCHS_INIT = 43
 
     agents = [
         #REINFORCEAgent(learningRate=.01, discountRate=.75, baseline=0),
-        MonteCarloAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.75, epsilonDecay=.999),
-        SARSAAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.75, epsilonDecay=.999),
-        DQNAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.75, epsilonDecay=.999),
+        #MonteCarloAgent(learningRate=.001, discountRate=.75, replayMemoryCapacity=5000, replayFraction=25, epsilon=.99, epsilonDecay=.9999),
+        #SARSAAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.75, epsilonDecay=.999),
+        #DQNAgent(learningRate=.001, discountRate=.75, replayMemoryCapacity=5000, replayFraction=25, epsilon=.99, epsilonDecay=.999),
+        ActorCriticAgent(learningRate=.001, discountRate=.75, replayMemoryCapacity=50000, replayFraction=500, epsilon=.99, epsilonDecay=.9999),
         RandomAgent()
     ]
-    explored = []
 
     trainingRunning = True
     targetEpochs = TARGET_EPOCHS_INIT #epochs to train for
@@ -24,7 +24,6 @@ if __name__ == "__main__":
     yss = [] #list of rewards each epoch, for each agent
     for i in range(len(agents)):
         yss.append(list())
-        explored.append(set())
     
     random.seed(RNG_SEED_INIT)
     tf.random.set_seed(RNG_SEED_INIT)
@@ -32,9 +31,10 @@ if __name__ == "__main__":
 
     while trainingRunning:
         for i in range(len(agents)):
-            env = MazeEnv(nCoins=20, startPosition="random")
+            env = MazeEnv(nCoins=10, startPosition="random")
             rngSeed=RNG_SEED_INIT
             observation, _ = env.reset(seed=rngSeed)
+            observation = tf.expand_dims(tf.convert_to_tensor(observation),2)
             observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
             epochs = resetEpochs
 
@@ -55,13 +55,10 @@ if __name__ == "__main__":
                     #pass action to env, get next observation
                     nextObservation, reward, terminated, truncated, _ = env.step(action)
 
-                    if not (observation.ref() in explored[i]):
-                        explored[i].add(observation.ref())
-                        reward+=1
-
                     Rs.append(float(reward)) #record observation for training
                     
                     nextObservation = tf.convert_to_tensor(nextObservation)
+                    nextObservation = tf.expand_dims(nextObservation,2)
                     nextObservation = tf.expand_dims(nextObservation,0)
 
                     agents[i].handleStep(terminated or truncated, Ss, As, Rs)
@@ -69,6 +66,7 @@ if __name__ == "__main__":
                     if terminated or truncated:
                         nextObservation, _ = env.reset(seed=rngSeed)
                         nextObservation = tf.convert_to_tensor(nextObservation)
+                        nextObservation = tf.expand_dims(nextObservation,2)
                         nextObservation = tf.expand_dims(nextObservation,0)
                         
                         yss[i].append(sum(Rs)) #calc overall reward for graph

@@ -8,14 +8,15 @@ from pole_agents import *
 if __name__ == "__main__":
 
     RNG_SEED_INIT=42
-    TARGET_EPOCHS_INIT = 10
+    TARGET_EPOCHS_INIT = 1000
 
     agents = [
-        #REINFORCEAgent(learningRate=.01, discountRate=0.8, baseline=0),
+        REINFORCEAgentEndROnlyInvGrad(learningRate=.01, baseline=0),
+        REINFORCEAgentEndROnly(learningRate=.01, baseline=0),
         #MonteCarloAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.5, epsilonDecay=.999),
         #SARSAAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.5, epsilonDecay=.999),
         #DQNAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.5, epsilonDecay=.999),
-        ActorCriticAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.5, epsilonDecay=.999),
+        #ActorCriticAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.5, epsilonDecay=.999),
         RandomAgent()
     ]
 

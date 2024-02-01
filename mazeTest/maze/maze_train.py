@@ -2,48 +2,49 @@ import random
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-import gym
-from pole_agents import *
+from maze_env import MazeEnv
+from maze_agents import *
 
 if __name__ == "__main__":
-
     RNG_SEED_INIT=42
-    TARGET_EPOCHS_INIT = 250
+    TARGET_EPOCHS_INIT = 1000
 
     agents = [
-        ActorCriticAgent(actorLearningRate=.001, criticLearningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.5, epsilonDecay=.999),
-        #REINFORCEAgent(learningRate=.01, baseline=0),
-        #MonteCarloAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.5, epsilonDecay=.999),
-        #SARSAAgent(learningRate=.001, discountRate=.95, epsilon=.9, epsilonDecay=.999),
-        #DNQWithExperienceReplayAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.9, epsilonDecay=.999), #does work but takes >300 epochs
-        RandomAgent()
+        #REINFORCEAgent(learningRate=.01, discountRate=.75, baseline=0),
+        #MonteCarloAgent(learningRate=.001, discountRate=.75, replayMemoryCapacity=5000, replayFraction=25, epsilon=.99, epsilonDecay=.9999),
+        #SARSAAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.75, epsilonDecay=.999),
+        #DQNAgent(learningRate=.001, discountRate=.75, replayMemoryCapacity=5000, replayFraction=25, epsilon=.99, epsilonDecay=.999),
+        #ActorCriticAgent(learningRate=.001, discountRate=.75, replayMemoryCapacity=50000, replayFraction=500, epsilon=.99, epsilonDecay=.9999),
+        #REINFORCEAgent(learningRate=.01, discountRate=.75, baseline=0),
+        REINFORCE_MENTAgent(learningRate=.01, discountRate=.75, baseline=0),
+        RandomAgent(),
     ]
 
     trainingRunning = True
-    targetEpochs = TARGET_EPOCHS_INIT
-    resetEpochs = 0
-    metrics = {"reward":[], "loss":[]}
+    targetEpochs = TARGET_EPOCHS_INIT #epochs to train for
+    resetEpochs = 0 #epoch count to continue from, when training is extended
+    yss = [] #list of rewards each epoch, for each agent
     for i in range(len(agents)):
-        metrics["reward"].append(list())
-        metrics["loss"].append(list())
+        yss.append(list())
+    
     random.seed(RNG_SEED_INIT)
     tf.random.set_seed(RNG_SEED_INIT)
     np.random.seed(RNG_SEED_INIT)
 
     while trainingRunning:
         for i in range(len(agents)):
-            env = gym.make('CartPole-v1')
+            env = MazeEnv(nCoins=10, startPosition="random")
             rngSeed=RNG_SEED_INIT
-            env.action_space.seed(rngSeed)
             observation, _ = env.reset(seed=rngSeed)
             observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
             epochs = resetEpochs
+
             print("Training new ", type(agents[i]).__name__)
             while epochs < targetEpochs: #for each epoch
+                agents[i].epsilon*=.99
                 Ss = []
                 As = []
                 Rs = []
-                Losses = []
                 epochRunning = True
                 while epochRunning: #for each time step in epoch
                     Ss.append(observation) #record observation for training
@@ -54,27 +55,25 @@ if __name__ == "__main__":
 
                     #pass action to env, get next observation
                     nextObservation, reward, terminated, truncated, _ = env.step(action)
+
                     Rs.append(float(reward)) #record observation for training
                     
                     nextObservation = tf.convert_to_tensor(nextObservation)
                     nextObservation = tf.expand_dims(nextObservation,0)
 
-                    agents[i].handleStep(terminated or truncated, Ss, As, Rs, callbacks=[
-                        tf.keras.callbacks.LambdaCallback(on_epoch_end=lambda epoch, logs: Losses.append(logs["loss"]))
-                    ])
+                    agents[i].handleStep(terminated or truncated, Ss, As, Rs)
                     
                     if terminated or truncated:
                         nextObservation, _ = env.reset(seed=rngSeed)
                         nextObservation = tf.convert_to_tensor(nextObservation)
                         nextObservation = tf.expand_dims(nextObservation,0)
                         
-                        metrics["reward"][i].append(sum(Rs)) #calc overall reward for graph
-                        metrics["loss"][i].extend(Losses) #calc overall reward for graph
+                        yss[i].append(sum(Rs)) #calc overall reward for graph
                         Ss = []
                         As = []
                         Rs = []
                         epochRunning = False
-                        print("Epoch ", epochs, " Done (r = ", metrics["reward"][i][-1],", ε ≈ ", round(agents[i].epsilon, 2),")", sep="")
+                        print("Epoch ", epochs, " Done (r = ", yss[i][-1],", ε ≈ ", round(agents[i].epsilon, 2),")", sep="")
                     observation = nextObservation
                 epochs+=1
                 rngSeed+=1
@@ -85,39 +84,33 @@ if __name__ == "__main__":
         #save the agents
         for agent in agents:
             #path = "checkpoints\\" + type(agent).__name__ + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + ".tf"
-            path = "checkpoints\\" + "Pole" + type(agent).__name__ + ".tf"
+            path = "checkpoints\\" + "Maze" + type(agent).__name__ + ".tf"
             agent.save_weights(path, overwrite=True)
         
-        def plot(target, agents, yss, metricName):
-            for i in range(len(agents)):
-                ys = yss[i]
-                x = range(len(ys))
-                
-                #smooth the curve
-                smoothedYs = []
-                window = []
-                windowSize = 5#max(len(ys)/200, 1)
-                for y in ys:
-                    window.append(y)
-                    if len(window)>windowSize:
-                        window.pop(0)
-                    smoothedYs.append(sum(window)/windowSize)
-                target.plot(x,smoothedYs, label=metricName + "(" + type(agents[i]).__name__ + ")")
-                #m, c = np.polyfit(x,ys,1)
-                #plt.plot(m*x + c) #line of best fit
-            target.legend()
-
         #plot return over time for each agent
-        if not plt.get_fignums() == []:
-            plt.clf() #clear previous graph
-        fig, axs = plt.subplots(len(metrics))
-        i = 0
-        for k in metrics:
-            plot(axs[i], agents, metrics[k], k)
-            i+=1
+        plt.clf() #clear previous graph
+        for i in range(len(agents)):
+            ys = yss[i]
+            x = range(len(ys))
+            
+            #smooth the curve
+            smoothedYs = []
+            window = []
+            windowSize = max(int(len(ys)/100), 1)
+            for y in ys:
+                window.append(y)
+                if len(window)>windowSize:
+                    window.pop(0)
+                smoothedYs.append(sum(window)/windowSize)
+            
+            plt.plot(x,smoothedYs, label=type(agents[i]).__name__)
+            #m, c = np.polyfit(x,ys,1)
+            #plt.plot(m*x + c) #line of best fit
+        plt.legend()
         plt.show()
         
         #prompt to continue training
+        
         n = input("enter number to extend training, non-numeric to end\n")
         if(n.isnumeric()):
             resetEpochs=epochs
@@ -125,5 +118,7 @@ if __name__ == "__main__":
         else:
             trainingRunning = False
             env.close()
+            
     
     exit()
+   

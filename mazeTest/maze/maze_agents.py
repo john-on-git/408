@@ -5,124 +5,16 @@ import numpy as np
 import random
 import tensorflow_probability as tfp
 
-#chooses randomly
 class RandomAgent():
     def __init__(self):
-        self.epsilon = 0
+        self.epsilon = 1
         pass
     def act(self, _):
-        return random.choice([0,1])
-    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
+        return random.choice([0,1,2,3])
+    def handleStep(self, _, __, ___, ____):
         pass
     def save_weights(self, path, overwrite):
         pass
-
-class WeirdREINFORCEVariant(Model):
-    def __init__(self, learningRate, discountRate, baseline=0, epsilon=0, epsilonDecay=1):
-        super().__init__()
-        self.discountRate = discountRate
-        self.baseline = baseline
-        self.epsilon = epsilon
-        self.epsilonDecay = epsilonDecay
-        self.learningRate = learningRate
-        self.modelLayers = [
-            layers.Flatten(input_shape=(4,)),
-            layers.Dense(4, activation=tf.nn.relu),
-            layers.Dense(8, activation=tf.nn.relu),
-            layers.Dense(2, activation=tf.nn.softmax),
-        ]
-        self.compile(
-            optimizer=tf.optimizers.Adam(),
-            metrics="loss"
-        )
-    def call(self, observation):
-        for layer in self.modelLayers:
-            observation = layer(observation)
-        return observation
-    def act(self, observation):
-        self.epsilon*=self.epsilonDecay
-        if random.random()<self.epsilon: #chance to act randomly
-            return random.choice([0,1])
-        else:
-            return int(tf.random.categorical(logits=self(observation),num_samples=1))
-    def train_step(self, eligibilityTraces, r):
-        #calculate sum of eligibility traces
-        grads = [None] * len(eligibilityTraces[0])
-        for eligibilityTrace in eligibilityTraces:
-            for i in range(len(eligibilityTrace)):
-                if grads[i] is None:
-                    grads[i] = eligibilityTrace[i]
-                else:
-                    grads[i] += eligibilityTrace[i]
-        
-        #multiply by learning rate, reward
-        grads = map(lambda x: self.learningRate * (float(r)-self.baseline)*x, grads)
-        
-        self.optimizer.apply_gradients(zip(
-            grads,
-            self.trainable_weights
-        )) #update weights
-        return {"loss": (self.baseline-float(r))}
-    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
-        def characteristic_eligibilities(s, a):
-            def lng(a, p): #probability mass function, it DOES make sense to calculate this all at once, says so in the paper
-                #The model only converges if we invert the gradient but I have no idea why. 💀
-                #I think it's because apply_gradients is intended to apply gradient w/r to a loss function so it subtracts it by default, but StackEx posters claim that this isn't the case.
-                #(could also be inverted elsewhere but I think doing it here is clearest)
-                return -tfp.distributions.Categorical(p).log_prob(a)
-            with tf.GradientTape() as tape:
-                return tape.gradient(lng(a,self(s)), self.trainable_weights)
-        def sumOfDiscountedAndNormalizedFutureRewards(discountRate, futureRewards):
-            def discount(discount, rs):
-                for i in range(len(rs)):
-                    rs[i] = rs[i] * discount
-                    discount*=discount
-                return rs
-            return sum(discount(discountRate, futureRewards))
-        #epoch ends, reset env, observation, & reward
-        if endOfEpoch:
-            #train model
-            #zip observations & rewards, pass to fit
-            eligibilityTraces = []
-            
-            for i in range(len(observationsThisEpoch)):
-                eligibilityTraces.append(characteristic_eligibilities(observationsThisEpoch[i], actionsThisEpoch[i]))
-                self.train_step(eligibilityTraces, sumOfDiscountedAndNormalizedFutureRewards(self.discountRate, rewardsThisEpoch[i:]))
-
-class PolicyGradientAgent(Model):
-    def __init__(self, learningRate, discountRate=0, baseline=0, epsilon=0, epsilonDecay=1):
-        super().__init__()
-        self.discountRate = discountRate
-        self.baseline = baseline
-        self.epsilon = epsilon
-        self.epsilonDecay = epsilonDecay
-        self.learningRate = learningRate
-        self.modelLayers = [
-            layers.Flatten(input_shape=(4,)),
-            layers.Dense(4, activation=tf.nn.relu),
-            layers.Dense(8, activation=tf.nn.relu),
-            layers.Dense(2, activation=tf.nn.softmax),
-        ]
-        self.compile(
-            optimizer=tf.optimizers.Adam(),
-            metrics="loss"
-        )
-    def call(self, observation):
-        for layer in self.modelLayers:
-            observation = layer(observation)
-        return observation
-    def act(self, observation):
-        self.epsilon*=self.epsilonDecay
-        if random.random()<self.epsilon: #chance to act randomly
-            return random.choice([0,1])
-        else:
-            return int(tf.random.categorical(logits=self(observation),num_samples=1))
-    def train_step(self, s, r):
-        self.optimizer.minimize(lambda: -(self(s)*r), self.trainable_weights)
-        return {"loss": (self.baseline-r)}
-    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
-        self.train_step(observationsThisEpoch[-1], float(sum(rewardsThisEpoch)))
-
 class REINFORCEAgent(Model):
     def __init__(self, learningRate, discountRate=0, baseline=0, epsilon=0, epsilonDecay=1):
         super().__init__()
@@ -132,10 +24,10 @@ class REINFORCEAgent(Model):
         self.epsilonDecay = epsilonDecay
         self.learningRate = learningRate
         self.modelLayers = [
-            layers.Flatten(input_shape=(4,)),
-            layers.Dense(4, activation=tf.nn.relu),
-            layers.Dense(8, activation=tf.nn.relu),
-            layers.Dense(2, activation=tf.nn.softmax),
+            layers.Flatten(),
+            layers.Dense(16, activation=tf.nn.relu),
+            layers.Dense(32, activation=tf.nn.relu),
+            layers.Dense(4, tf.nn.softmax)
         ]
         self.compile(
             optimizer=tf.optimizers.Adam(),
@@ -148,7 +40,7 @@ class REINFORCEAgent(Model):
     def act(self, observation):
         self.epsilon*=self.epsilonDecay
         if random.random()<self.epsilon: #chance to act randomly
-            return random.choice([0,1])
+            return random.choice([0,1,2,3])
         else:
             return int(tf.random.categorical(logits=self(observation),num_samples=1))
     def train_step(self, eligibilityTraces, r):
@@ -190,6 +82,82 @@ class REINFORCEAgent(Model):
             
             self.train_step(eligibilityTraces, float(sum(rewardsThisEpoch)))
 
+class REINFORCE_MENTAgent(Model):
+    def __init__(self, learningRate, discountRate=0, baseline=0, epsilon=0, epsilonDecay=1):
+        super().__init__()
+        self.discountRate = discountRate
+        self.baseline = baseline
+        self.epsilon = epsilon
+        self.epsilonDecay = epsilonDecay
+        self.learningRate = learningRate
+        self.modelLayers = [
+            layers.Reshape(target_shape=(6,6,1)),
+            layers.Conv2D(1, kernel_size=(3,3)),
+            layers.Flatten(),
+            layers.Dense(16, activation=tf.nn.relu),
+            layers.Dense(32, activation=tf.nn.relu),
+            layers.Dense(4, tf.nn.softmax)
+        ]
+        self.compile(
+            optimizer=tf.optimizers.Adam(),
+            metrics="loss"
+        )
+    def call(self, observation):
+        for layer in self.modelLayers:
+            observation = layer(observation)
+        return observation
+    def act(self, observation):
+        self.epsilon*=self.epsilonDecay
+        if random.random()<self.epsilon: #chance to act randomly
+            return random.choice([0,1,2,3])
+        else:
+            return int(tf.random.categorical(logits=self(observation),num_samples=1))
+    def train_step(self, eligibilityTraces, r):
+        #calculate sum of eligibility traces
+        grads = [None] * len(eligibilityTraces[0])
+        for eligibilityTrace in eligibilityTraces:
+            for i in range(len(eligibilityTrace)):
+                if grads[i] is None:
+                    grads[i] = eligibilityTrace[i]
+                else:
+                    grads[i] += eligibilityTrace[i]
+        
+        #multiply by learning rate, reward
+        grads = map(lambda x: self.learningRate * (r-self.baseline) * x, grads)
+        
+        self.optimizer.apply_gradients(zip(
+            grads,
+            self.trainable_weights
+        )) #update weights
+        return {"loss": (self.baseline-r)}
+    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
+        def lng(a, p): #probability mass function, it DOES make sense to calculate this all at once, says so in the paper
+            #The model only converges if we invert the gradient but I have no idea why. 💀
+            #I think it's because apply_gradients is intended to apply gradient w/r to a loss function so it subtracts it by default, but StackEx posters claim that this isn't the case.
+            #(could also be inverted elsewhere but I think doing it here is clearest)
+            return -tfp.distributions.Categorical(p).log_prob(a)
+        def characteristic_eligibilities(s, a):
+            with tf.GradientTape() as tape:
+                return tape.gradient(lng(a,self(s)), self.trainable_weights)
+        def averageEntropy(ss):
+            totalEntropy = 0
+            for s in ss: #sum up the entropy of each state
+                p = self(s)
+                for a in range(4):
+                    totalEntropy-=lng(a,p)
+            return (totalEntropy/len(ss)) #take the mean
+        #epoch ends, reset env, observation, & reward
+        if endOfEpoch:
+            #train model
+            #zip observations & rewards, pass to fit
+            eligibilityTraces = []
+            
+            #calculate characteristic eligibilities
+            for i in range(len(observationsThisEpoch)):
+                eligibilityTraces.append(characteristic_eligibilities(observationsThisEpoch[i], actionsThisEpoch[i]))
+            
+            self.train_step(eligibilityTraces, float(sum(rewardsThisEpoch)) + averageEntropy(observationsThisEpoch))
+
 class MonteCarloAgent(Model):
     def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, replayFraction=5, epsilon=0, epsilonDecay=1):
         super().__init__()
@@ -202,23 +170,23 @@ class MonteCarloAgent(Model):
         self.epsilonDecay = epsilonDecay
         self.discountRate = np.float32(discountRate)
         self.modelLayers = [
-            layers.Flatten(input_shape=(4,)),
-            layers.Dense(4, activation=tf.nn.sigmoid),
-            layers.Dense(8, activation=tf.nn.sigmoid),
-            layers.Dense(2, activation=None)
+            layers.Flatten(),
+            layers.Dense(16, activation=tf.nn.relu),
+            layers.Dense(32, activation=tf.nn.relu),
+            layers.Dense(4, tf.nn.softmax)
         ]
         self.compile(
             optimizer=tf.optimizers.Adam(learning_rate=learningRate),
             metrics="loss",
         )
-    def call(self, observation):
+    def call(self, s):
         for layer in self.modelLayers:
-            observation = layer(observation)
-        return observation
+            s = layer(s)
+        return s
     def act(self, s):
         self.epsilon*=self.epsilonDecay
         if random.random()<self.epsilon: #chance to act randomly
-            return random.choice([0,1])
+            return random.choice([0,1,2,3])
         else:
             return int(tf.argmax(self(s)[0])) #follow greedy policy
     def train_step(self, x):
@@ -261,7 +229,7 @@ class MonteCarloAgent(Model):
             self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minitbatch
 
 #Replay method from Playing Atari with Deep Reinforcement Learning, Mnih et al (Algorithm 1).
-class DNQWithExperienceReplayAgent(Model):  
+class DQNAgent(Model):  
     def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, replayFraction=5, epsilon=0, epsilonDecay=1):
         super().__init__()
         self.replayMemoryS1s = []
@@ -274,10 +242,10 @@ class DNQWithExperienceReplayAgent(Model):
         self.epsilonDecay = epsilonDecay
         self.discountRate = np.float32(discountRate)
         self.modelLayers = [
-            layers.Flatten(input_shape=(4,)),
-            layers.Dense(4, activation=tf.nn.sigmoid),
-            layers.Dense(8, activation=tf.nn.sigmoid),
-            layers.Dense(2, activation=None)
+            layers.Flatten(),
+            layers.Dense(16, activation=tf.nn.relu),
+            layers.Dense(32, activation=tf.nn.relu),
+            layers.Dense(4, tf.nn.softmax)
         ]
         self.compile(
             optimizer=tf.optimizers.Adam(
@@ -285,21 +253,22 @@ class DNQWithExperienceReplayAgent(Model):
             ),
             metrics=["loss"]
         )
-    def call(self, observation):
+    def call(self, s):
         for layer in self.modelLayers:
-            observation = layer(observation)
-        return observation
+            s = layer(s)
+        return s
     def act(self, s):
         self.epsilon *= self.epsilonDecay
         if random.random()<self.epsilon: #chance to act randomly
-            return random.choice([0,1])
+            return random.choice([0,1,2,3])
         else:
             return int(tf.argmax(self(s)[0])) #follow greedy policy
     def train_step(self, x):
-        @tf.function
-        def l(s1,a1,r,s2): #from atari paper
+        def l(s1,a1,r,s2): #from atari paper    
             q2 = self.discountRate*tf.reduce_max(self(s2)) #estimated q-value for on-policy action for s2
+
             #TODO try fixed weights. create a duplicate model, use it to estimate q2, don't update its weights until end of fit()
+
             q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
             return (r+q2-q1)*(r+q2-q1) #tf.math.squared_difference(r+q2, q1) #calculate error between prediction and (approximated) label
 
@@ -308,6 +277,7 @@ class DNQWithExperienceReplayAgent(Model):
         return {"loss": l(s1,a,r,s2)}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         if len(observationsThisEpoch)>1: #if we have a transition to add
+            self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-1]))
             #add the transition
             self.replayMemoryS1s.append(observationsThisEpoch[-2])
             self.replayMemoryA1s.append(actionsThisEpoch[-2])
@@ -332,11 +302,10 @@ class DNQWithExperienceReplayAgent(Model):
                     miniBatchRs.append(self.replayMemoryRs[i])
                     miniBatchS2s.append(self.replayMemoryS2s[i])
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s))
-                self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minitbatch
+                self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minibatch
 
 #same as above but SARSA instead
-#Note, this is not actually SARSA it's not on-policy. The actions are from older versions of the policy src: https://stats.stackexchange.com/questions/264904/why-experience-replay-requires-off-policy-algorithm
-class NotQuiteSARSAAgent(Model):
+class SARSAAgent(Model):
     def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, replayFraction=5, epsilon=0, epsilonDecay=1):
         super().__init__()
         self.replayMemoryS1s = []
@@ -350,10 +319,12 @@ class NotQuiteSARSAAgent(Model):
         self.epsilonDecay = epsilonDecay
         self.discountRate = np.float32(discountRate)
         self.modelLayers = [
-            layers.Flatten(input_shape=(4,)),
-            layers.Dense(4, activation=tf.nn.sigmoid),
-            layers.Dense(8, activation=tf.nn.sigmoid),
-            layers.Dense(2, activation=None)
+            layers.Conv2D(1, kernel_size=(2,2), input_shape=(6,6,1)),
+            layers.Conv2D(1, kernel_size=(2,2)),
+            layers.Flatten(),
+            layers.Dense(16, activation=tf.nn.sigmoid),
+            layers.Dense(32, activation=tf.nn.sigmoid),
+            layers.Dense(4)
         ]
         self.compile(
             optimizer=tf.optimizers.Adam(
@@ -361,14 +332,14 @@ class NotQuiteSARSAAgent(Model):
             ),
             metrics=["loss"]
         )
-    def call(self, observation):
+    def call(self, s):
         for layer in self.modelLayers:
-            observation = layer(observation)
-        return observation
+            s = layer(s)
+        return s
     def act(self, s):
         self.epsilon *= self.epsilonDecay #epsilon decay
         if random.random()<self.epsilon: #chance to act randomly
-            return random.choice([0,1])
+            return random.choice([0,1,2,3])
         else:
             return int(tf.argmax(self(s)[0])) #follow greedy policy
     def train_step(self, x):
@@ -376,12 +347,13 @@ class NotQuiteSARSAAgent(Model):
         def l(s1,a1,r,s2,a2): #from atari paper
             q2 = self.discountRate*self(s2)[0][a2] #estimated q-value for on-policy action for s2
             q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
-            return (r+q2-q1)*(r+q2-q1) #calculate error between prediction and (approximated) label
+            return tf.math.squared_difference(r+q2, q1)
         s1,a1,r,s2,a2 = x
         self.optimizer.minimize(lambda: l(s1,a1,r,s2,a2), self.trainable_weights)
         return {"loss": l(s1,a1,r,s2,a2)}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         if len(observationsThisEpoch)>1: #if we have a transition to add
+            self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-1], actionsThisEpoch[-1]))
             #add the transition
             self.replayMemoryS1s.append(observationsThisEpoch[-2])
             self.replayMemoryA1s.append(actionsThisEpoch[-2])
@@ -411,17 +383,15 @@ class NotQuiteSARSAAgent(Model):
                     miniBatchA2s.append(self.replayMemoryA2s[i])
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s, miniBatchA2s))
                 self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minibatch
-class SARSAAgent(Model):
-    def __init__(self, learningRate, discountRate, epsilon=0, epsilonDecay=1):
+
+class Actor(Model):
+    def __init__(self, learningRate):
         super().__init__()
-        self.epsilon = epsilon
-        self.epsilonDecay = epsilonDecay
-        self.discountRate = np.float32(discountRate)
         self.modelLayers = [
-            layers.Flatten(input_shape=(4,)),
-            layers.Dense(4, activation=tf.nn.sigmoid),
-            layers.Dense(8, activation=tf.nn.sigmoid),
-            layers.Dense(2, activation=None)
+            layers.Flatten(),
+            layers.Dense(16, activation=tf.nn.relu),
+            layers.Dense(32, activation=tf.nn.relu),
+            layers.Dense(4, tf.nn.softmax)
         ]
         self.compile(
             optimizer=tf.optimizers.Adam(
@@ -429,31 +399,48 @@ class SARSAAgent(Model):
             ),
             metrics=["loss"]
         )
-    def call(self, observation):
+    def call(self, s):
         for layer in self.modelLayers:
-            observation = layer(observation)
-        return observation
-    def act(self, s):
-        self.epsilon *= self.epsilonDecay #epsilon decay
-        if random.random()<self.epsilon: #chance to act randomly
-            return random.choice([0,1])
-        else:
-            return int(tf.argmax(self(s)[0])) #follow greedy policy
+            s = layer(s)
+        return s
     def train_step(self, x):
-        @tf.function
-        def l(s1,a1,r,s2,a2): #from atari paper
-            q2 = self.discountRate*self(s2)[0][a2] #estimated q-value for on-policy action for s2
+        def l(s,a,v):
+            return v * tfp.distributions.Categorical(self(s)).log_prob(a)
+        s1,a,v = x
+        self.optimizer.minimize(lambda: l(s1,a,v), self.trainable_weights)
+        return {"loss": l(s1,a,v)} #idk if taking the average here makes sense
+class Critic(Model):
+    def __init__(self, learningRate, discountRate):
+        super().__init__()
+        self.discountRate = discountRate
+        self.modelLayers = [
+            layers.Flatten(),
+            layers.Dense(16, activation=tf.nn.relu),
+            layers.Dense(32, activation=tf.nn.relu),
+            layers.Dense(4, tf.nn.softmax)
+        ]
+        self.compile(
+            optimizer=tf.optimizers.Adam(
+                learning_rate = learningRate
+            ),
+            metrics=["loss"]
+        )
+    def call(self, s):
+        for layer in self.modelLayers:
+            s = layer(s)
+        return s
+    def train_step(self, x):
+        def l(s1,a1,r,s2):
+            #there's a function phi that transforms (s,a) into the critic input
+            #len(critic logits) = len(actor.trainable_weights)
+            q2 = self.discountRate*tf.reduce_max(self(s2)) #estimated q-value for on-policy action for s2
             q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
-            return (r+q2-q1)*(r+q2-q1) #calculate error between prediction and (approximated) label
-        s1,a1,r,s2,a2 = x
-        self.optimizer.minimize(lambda: l(s1,a1,r,s2,a2), self.trainable_weights)
-        return {"loss": l(s1,a1,r,s2,a2)}
-    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
-        if len(observationsThisEpoch)>1: #if we have a transition
-            self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-1], actionsThisEpoch[-1])) #train on the new step
-
+            return (r+q2-q1)*(r+q2-q1) #tf.math.squared_difference(r+q2, q1) #calculate error between prediction and (approximated) label
+        s1,a,r,s2 = x
+        self.optimizer.minimize(lambda: l(s1,a,r,s2), self.trainable_weights)
+        return {"loss": l(s1,a,r,s2)} #idk if taking the average here makes sense
 class ActorCriticAgent (Model):
-    def __init__(self, actorLearningRate, criticLearningRate, discountRate, replayMemoryCapacity=0, replayFraction=5, epsilon=0, epsilonDecay=1):
+    def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, replayFraction=5, epsilon=0, epsilonDecay=1):
         super().__init__()
         self.replayMemoryS1s = []
         self.replayMemoryA1s = []
@@ -465,54 +452,21 @@ class ActorCriticAgent (Model):
         self.epsilon = epsilon
         self.epsilonDecay = epsilonDecay
         self.discountRate = np.float32(discountRate)
-        self.actorLearningRate = actorLearningRate
-        self.actorLayers = [
-            layers.Flatten(),
-            layers.Dense(4, activation=tf.nn.relu),
-            layers.Dense(8, activation=tf.nn.relu),
-            layers.Dense(2, activation=tf.nn.softmax)
-        ]
-        self.criticLayers = [
-            layers.Flatten(),
-            layers.Dense(4, activation=tf.nn.sigmoid),
-            layers.Dense(8, activation=tf.nn.sigmoid),
-            layers.Dense(2, activation=None)
-        ]
-        self.compile(
-            optimizer=tf.keras.optimizers.legacy.SGD(
-                learning_rate = criticLearningRate
-            ),
-            metrics=["loss"],
-            run_eagerly=False
-        )
-    def call(self, s):
-        return self.actor(s)
-    def actor(self, s):
-        for layer in self.actorLayers:
-            s = layer(s)
-        return s
-    def critic(self, s):
-        for layer in self.criticLayers:
-            s = layer(s)
-        return s
+        self.actor = Actor(learningRate)
+        self.critic = Critic(learningRate, discountRate)
+        self.compile()
     def act(self, s):
         self.epsilon *= self.epsilonDecay #epsilon decay
         if random.random()<self.epsilon: #chance to act randomly
-            return random.choice([0,1])
+            return random.choice([0,1,2,3])
         else:
-            return int(tf.argmax(self(s)[0])) #follow greedy policy
+            return int(tf.argmax(self.actor(s)[0])) #follow greedy policy
     def train_step(self, x):
-        def lCritic():
-            q2 = self.discountRate*tf.reduce_max(self.critic(s2)) #estimated q-value for on-policy action for s2
-            q1 = self.critic(s1)[0][a] #estimated q-value for (s,a) yielding r
-            return (r+q2-q1)*(r+q2-q1)
-        def gradsActor():
-            with tf.GradientTape() as tape:
-                return tape.gradient(self.actorLearningRate * self.critic(s1)[0][a] * tfp.distributions.Categorical(self.actor(s1)).log_prob(a), self.actorLayers.trainable_weights)
-        s1,a,r,s2 = x
-        self.optimizer.minimize(lCritic, self.criticLayers.trainable_weights)
-        self.optimizer.apply_gradients(zip(gradsActor(), self.actorLayers.trainable_weights))
-        return {"loss": lCritic()} #idk if taking the average here makes sense
+        s1,a,_,_ = x
+        l1 = self.critic.train_step(x)
+        v = self.actor(s1)[0][a]
+        l2 = self.actor.train_step((s1,a,v))
+        return {"loss": (l1["loss"]+l2["loss"])/2} #idk if taking the average here makes sense
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         if len(observationsThisEpoch)>1: #if we have a transition to add
             #add the transition
@@ -527,6 +481,7 @@ class ActorCriticAgent (Model):
                 self.replayMemoryS2s.pop(0)
             
             if endOfEpoch:
+                self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-1])) #load-bearing train_step
                 #build the minibatch
                 miniBatchS1s = []
                 miniBatchAs  = []
@@ -539,4 +494,11 @@ class ActorCriticAgent (Model):
                     miniBatchRs.append(self.replayMemoryRs[i])
                     miniBatchS2s.append(self.replayMemoryS2s[i])
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s))
-                self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minibatch
+                self.fit(dataset) #train on the minibatch
+    #warning, very dumb
+    def save_weights(self,path, overwrite):
+        self.actor.save_weights(path+"_actor.tf", overwrite=overwrite)
+        self.critic.save_weights(path+"_critic.tf", overwrite=overwrite)
+    def load_weights(self,path):
+        self.actor.load_weights(path+"_actor.tf")
+        self.critic.load_weights(path+"_critic.tf")

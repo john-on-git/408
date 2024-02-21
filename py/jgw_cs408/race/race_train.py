@@ -2,22 +2,19 @@ import random
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from ttt_env import TTTEnv, SearchAgent
+from race_env import RaceEnv
 from jgw_cs408.agents import *
 import time
 
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    TRAINING_TIME_SECONDS = 12000
+    TRAINING_TIME_SECONDS = 300
     EPSILON_EVALUATION_WINDOW_SIZE = 10 #epsilon is lowered (difficulty is increased) if the agent scores well in at least this many games in a row
 
-    env = TTTEnv(opponent=SearchAgent(epsilon=1, epsilonDecay=1)) #epsilon is modified based on highest agent performance
+    env = RaceEnv()
     agents = [
-        #DQNAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=0.25, epsilonDecay=.9, actionSpace=env.actionSpace)
+        DQNAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=0.25, epsilonDecay=.9, actionSpace=env.actionSpace)
         #REINFORCE_MENTAgent(learningRate=0.01, discountRate=.9, actionSpace=env.actionSpace)
-        AdvantageActorCriticAgent(learningRate=.001, actionSpace=env.actionSpace, discountRate=.75, epsilon=.99, epsilonDecay=.9999, validActions=env.validActions),
-        ActorCriticAgent(learningRate=.001, actionSpace=env.actionSpace, discountRate=.75, replayMemoryCapacity=50000, replayFraction=500, epsilon=.99, epsilonDecay=.9999, validActions=env.validActions),
-
     ]
     metrics = {"reward":[], "loss":[]} #list of rewards each epoch, for each agent
     for i in range(len(agents)):
@@ -33,7 +30,7 @@ if __name__ == "__main__":
         observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
         start = time.time()
         epochs = 0
-        while time.time()-start<=TRAINING_TIME_SECONDS and env.agent.epsilon>.05:
+        while time.time()-start<=TRAINING_TIME_SECONDS:
             Ss = []
             As = []
             Rs = []
@@ -68,11 +65,6 @@ if __name__ == "__main__":
                     As = []
                     Rs = []
                     epochRunning = False
-                    #consider lowering epsilon
-                    bestOfLast10 = np.max([0.0, np.min(metrics["reward"][-EPSILON_EVALUATION_WINDOW_SIZE:])])
-                    nextEpsilonCandidate= np.min([1.0, 1.0-(bestOfLast10/250)])
-                    env.opponent.epsilon = np.min([nextEpsilonCandidate, env.opponent.epsilon])
-                    print("Epoch ", epochs, " Done (r = ", metrics["reward"][i][-1],", εA ≈ ", round(agents[i].epsilon, 2),", εO ≈ ", round(env.opponent.epsilon, 2),")", sep="")
                 observation = nextObservation
             epochs+=1
             rngSeed+=1

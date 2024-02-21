@@ -1,3 +1,24 @@
+- TODO.
+	- Write Final Report.
+		- Abstract.
+		- Precise Specification of Goals.
+		- Prior Work.
+		- Software Specfication.
+		- Details of Implementation.
+		- Method.
+		- Results.
+		- Reflection on Development Process, Sprints.
+	- Clarify MDP Definition.
+	- Convert TTT to support arbitary size.
+	- Garbage.
+		- Advantages of off-policy vs on-policy.
+		- Reading.
+		- Policy-Gradient.
+			- Asynchronous methods for deep reinforcement learning (A2C).
+			- Proximal Policy Optimization.
+		- Understand & implement Actor-Critic.
+		- Find some other improvements from RAINBOW, understand & implement.
+		- C51 algorithm.
 - Goals for 21.12.23 Meeting.
 	- Questions.
 		- Progress Update.
@@ -31,9 +52,14 @@
 				- A2C + .
 				- Soft Actor-Critic.
 			- "DQN, SARSA, Vanilla Policy Gradient (REINFORCE), PPO, Vanilla Actor-Critic, Advantage Actor-Critic."
-- TODO.
-	- Advantages of off-policy vs on-policy.
-- Async deep learning paper graphs max of agents trained at different learning rates, could do that.
+- Goals for 8.2.24 Meeting.
+	- Progress Update.
+		- Spent a few days implementing. 
+		- Finalized environment list.
+	- Thoughts.
+		- Resources very limited.
+		- Do not convolutional.
+- Async deep learning paper graphs (edit: maybe I meant table?) max of agents trained at different learning rates, could do that.
 - Is Q-learning appropriate?
 	- Yes.
 	- Compare with & without various improvements?
@@ -80,6 +106,10 @@ w.b. 15.1.24
 	- "Asynchronous Methods for Deep Reinforcement Learning" is the original A3C paper.
 		- A3C is the original, A2C is the name for synchronous variants (src: https://openai.com/research/openai-baselines-acktr-a2c).
 		- No paper for A2C?
+		- A2C/A3C is just actor-critic with entropy. Advantage comes from "Advantage Function", which is a synthetic metric for optimizing.
+			- In the Async Methods paper, Advantage(...) = Reward(...) + Entropy(...)
 	- Entropy.
-		- Start w/ "Function optimization using connectionist reinforcement learning algorithms".
-		- 
+		- Start w/ "Function optimization using connectionist reinforcement learning algorithms" (REINFORCE/MENT paper).
+w.b. 5.2.24
+	- It's common practise to manually prevent agent from taking invalid actions.
+- Remember to pip freeze requirements, or it might not be reproducable (src: reddit comment).

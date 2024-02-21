@@ -6,6 +6,9 @@ import random
 import tensorflow_probability as tfp
 import math
 
+#TODO
+    #all agents need to implement blocking of invalid actions. This also needs to be applied to the training logic, i.e. called by q()
+
 class RandomAgent():
     def __init__(self, actionSpace):
         self.epsilon = 1
@@ -86,6 +89,7 @@ class REINFORCEAgent(Model):
             
             self.train_step(eligibilityTraces, float(sum(rewardsThisEpoch)))
 
+#REINFORCE w/ entropy
 class REINFORCE_MENTAgent(Model):
     def __init__(self, learningRate, actionSpace, hiddenLayers=[layers.Dense(16, activation=tf.nn.relu),layers.Dense(32, activation=tf.nn.relu)], entropyWeight=1, discountRate=0, baseline=0, epsilon=0, epsilonDecay=1):
         super().__init__()
@@ -410,7 +414,7 @@ class SARSAAgent(Model):
                 self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minibatch
 
 class Actor(Model):
-    def __init__(self, actionSpace, learningRate):
+    def __init__(self, learningRate, actionSpace):
         super().__init__()
         self.modelLayers = [
             layers.Flatten(),
@@ -430,12 +434,12 @@ class Actor(Model):
         return s
     def train_step(self, x):
         def l(s,a,v):
-            return v * tfp.distributions.Categorical(self(s)).log_prob(a)
-        s1,a,v = x
-        self.optimizer.minimize(lambda: l(s1,a,v), self.trainable_weights)
-        return {"loss": l(s1,a,v)} #idk if taking the average here makes sense
+            return v * tfp.distributions.Categorical(self(s)[0]).log_prob(a)
+        s,a,v = x #where v is the critic's feedback
+        self.optimizer.minimize(lambda: l(s,a,v), self.trainable_weights)
+        return {"loss": l(s,a,v)} #idk if taking the average here makes sense
 class Critic(Model):
-    def __init__(self, actionSpace, learningRate, discountRate):
+    def __init__(self, learningRate, actionSpace, discountRate):
         super().__init__()
         self.discountRate = discountRate
         self.modelLayers = [
@@ -464,8 +468,8 @@ class Critic(Model):
         s1,a,r,s2 = x
         self.optimizer.minimize(lambda: l(s1,a,r,s2), self.trainable_weights)
         return {"loss": l(s1,a,r,s2)} #idk if taking the average here makes sense
-class ActorCriticAgent (Model):
-    def __init__(self, learningRate, actionSpace, entropyWeight=1, discountRate=0, baseline=0, epsilon=0, epsilonDecay=1, replayMemoryCapacity=0, replayFraction=5):
+class ActorCriticAgent(Model):
+    def __init__(self, learningRate, actionSpace, entropyWeight=1, discountRate=0, baseline=0, epsilon=0, epsilonDecay=1, replayMemoryCapacity=0, replayFraction=5, validActions = None):
         super().__init__()
         self.discountRate = discountRate
         self.baseline = baseline
@@ -481,36 +485,27 @@ class ActorCriticAgent (Model):
         self.replayMemoryCapacity = replayMemoryCapacity
         self.replayFraction = replayFraction
         self.entropyWeight=entropyWeight
+        self.validActions = validActions if validActions is not None else (lambda s: actionSpace) #Callable that returns the valid actions for a state. Defaults to entire action space.
 
         #initLayers
         self.discountRate = np.float32(discountRate)
-        self.actor = Actor(learningRate)
-        self.critic = Critic(learningRate, discountRate)
-        self.compile()
-    def __init__(self, learningRate, discountRate, replayMemoryCapacity=0, replayFraction=5, epsilon=0, epsilonDecay=1):
-        super().__init__()
-        self.replayMemoryS1s = []
-        self.replayMemoryA1s = []
-        self.replayMemoryRs  = []
-        self.replayMemoryS2s = []
-        self.replayMemoryA2s = []
-        self.replayMemoryCapacity = replayMemoryCapacity
-        self.replayFraction = replayFraction
-        self.epsilon = epsilon
-        self.epsilonDecay = epsilonDecay
-        self.discountRate = np.float32(discountRate)
-        self.actor = Actor(learningRate)
-        self.critic = Critic(learningRate, discountRate)
+        self.actor = Actor(learningRate, actionSpace)
+        self.critic = Critic(learningRate, actionSpace, discountRate)
         self.compile()
     def act(self, s):
         self.epsilon *= self.epsilonDecay #epsilon decay
+        validActions = self.validActions(s) #get valid actions
         if random.random()<self.epsilon: #chance to act randomly
-            return random.choice(self.actionSpace)
+            return random.choice(validActions)
         else:
-            return int(tf.argmax(self.actor(s)[0])) #follow greedy policy
+            probs = self.actor(s)[0]
+            newProbs = [0.0] * len(probs)
+            for i in validActions:
+                newProbs[i] = probs[i] 
+            return int(tf.argmax(probs)) #follow greedy policy
     def train_step(self, x):
-        s1,a,_,_ = x
         l1 = self.critic.train_step(x)
+        s1,a,_,_ = x
         v = self.actor(s1)[0][a]
         l2 = self.actor.train_step((s1,a,v))
         return {"loss": (l1["loss"]+l2["loss"])/2} #idk if taking the average here makes sense
@@ -549,3 +544,67 @@ class ActorCriticAgent (Model):
     def load_weights(self,path):
         self.actor.load_weights(path+"_actor.tf")
         self.critic.load_weights(path+"_critic.tf")
+
+class AdvantageActorCriticAgent (Model):
+    def __init__(self, learningRate, actionSpace, entropyWeight=1, discountRate=0, baseline=0, epsilon=0, epsilonDecay=1, validActions = None):
+        super().__init__()
+        self.discountRate = discountRate
+        self.baseline = baseline
+        self.epsilon = epsilon
+        self.epsilonDecay = epsilonDecay
+        self.learningRate = learningRate
+        self.actionSpace = actionSpace
+        self.entropyWeight=entropyWeight
+        self.validActions = validActions if validActions is not None else (lambda s: actionSpace) #Callable that returns the valid actions for a state. Defaults to entire action space.
+        #initLayers
+        self.discountRate = np.float32(discountRate)
+        self.modelLayers = [
+            layers.Flatten(),
+            layers.Dense(16, activation=tf.nn.relu),
+            layers.Dense(32, activation=tf.nn.relu),
+            layers.Dense(len(actionSpace)+1) #the final output is the v-value of s
+        ]
+        self.compile()
+    def call(self, observation):
+        for layer in self.modelLayers:
+            observation = layer(observation)
+        return observation
+    def act(self, s):
+        self.epsilon *= self.epsilonDecay #epsilon decay
+        validActions = self.validActions(s) #get valid actions
+        if random.random()<self.epsilon: #chance to act randomly
+            return random.choice(validActions)
+        else:
+            probs = self(s)[0][0:-1]
+            newProbs = [0.0] * len(probs)
+            for i in validActions:
+                newProbs[i] = probs[i] 
+            return int(tf.argmax(probs)) #follow greedy policy
+    def train_step(self, x):
+        def lCritic(s1,r,s2):
+            q2 = self.discountRate*self(s2)[0][-1] #estimated v-value for s2
+            q1 = self(s1)[0][-1] #estimated v-value for s1
+            return (r+q2-q1)*(r+q2-q1) #tf.math.squared_difference(r+q2, q1) #calculate error between prediction and (approximated) label
+        def lActor(s,a,v):
+            return v * tfp.distributions.Categorical(self(s)[0][:-1]).log_prob(a)
+        s1,act,r,adv,s2 = x
+    
+        self.optimizer.minimize(lambda: lCritic(s1,r,s2), self.trainable_weights) #minimize critic
+        self.optimizer.minimize(lambda: lActor(s1,act,adv), self.trainable_weights) #minimize actor
+        return {"loss": 0.0} #TODO
+    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
+        def advantages(Ss, Rs, tMax): #calculate advantage for all ts
+            advantages = []
+            advantage = 0
+            n = 0
+            for t in range(tMax):
+                k = tMax-t
+                for i in range(k):
+                    n+=1
+                    advantage += (self.discountRate**i*Rs[t+i]) + (self.learningRate**k*self(Ss[t+k])[0][-1]) - (self(Ss[t])[0][-1]) #advantage formula from Async Methods for DRL
+                advantages.append(advantage)
+            return advantages
+        if endOfEpoch:
+            #self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-1])) #load-bearing train_step
+            dataset = tf.data.Dataset.from_tensor_slices((observationsThisEpoch[:-1], actionsThisEpoch[:-1], rewardsThisEpoch[:-1], advantages(observationsThisEpoch, rewardsThisEpoch, len(observationsThisEpoch)-1), observationsThisEpoch[1:]))
+            self.fit(dataset) #train on the minibatch

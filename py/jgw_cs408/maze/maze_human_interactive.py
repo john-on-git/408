@@ -1,4 +1,5 @@
 from time import sleep
+import pygame
 from maze_env import MazeEnv
 import keyboard
 
@@ -12,4 +13,7 @@ keyboard.on_press_key('d', lambda _: (env.step(3)))
 keyboard.on_press_key('esc', lambda _: exit())
 
 while running:
-    sleep(0.1)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            exit()
+    sleep(.1)

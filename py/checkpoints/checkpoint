@@ -1,0 +1,2 @@
+model_checkpoint_path: "MazeActorCriticAgent.tf_critic.tf"
+all_model_checkpoint_paths: "MazeActorCriticAgent.tf_critic.tf"

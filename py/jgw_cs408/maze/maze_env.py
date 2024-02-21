@@ -21,7 +21,7 @@ class Coin(Entity):
         super().__init__(coords)
 
 class MazeModel(Observable):
-    def __init__(self, squares : [[Square]], playerPosition : (str|tuple), nCoins : int, gameLength:int=None, scorePerCoin:int=10) -> None:
+    def __init__(self, squares : list[list[Square]], playerPosition : (str|tuple), nCoins : int, gameLength:int=None, scorePerCoin:int=10) -> None:
         super().__init__()
         #assert shape is ok (all rows must be the same length)
         WIDTH = len(squares[0])
@@ -50,7 +50,7 @@ class MazeModel(Observable):
 
         for _ in range(nCoins): #add coins
             self.placeCoin()
-    def reset(self, squares : [[Square]], playerPosition : (str|tuple), nCoins : int) -> None:
+    def reset(self, squares : list[list[Square]], playerPosition : (str|tuple), nCoins : int) -> None:
         self.squares = squares
         if playerPosition=="random":
             self.placePlayer()
@@ -62,7 +62,7 @@ class MazeModel(Observable):
         self.food = self.scorePerCoin
         for _ in range(nCoins): #add coins
             self.placeCoin()
-    def step(self, action : (0|1|2|3|4) = 4) -> (tuple, int, bool, bool, None):
+    def step(self, action : (0|1|2|3|4) = 4) -> tuple[list[float], int, bool, bool, None]:
         def canMoveTo(coords : tuple) -> bool:
             y,x = coords
             return x>=0 and y>=0 and y<len(self.squares) and x<len(self.squares[0]) and self.squares[y][x] == Square.EMPTY
@@ -113,7 +113,7 @@ class MazeModel(Observable):
         truncated = self.food<=0 #end of game because the player died
         info = None
         return (logits, reward, terminated, truncated, info)
-    def calcLogits(self) -> [float]:
+    def calcLogits(self) -> list[float]:
         LOGIT_EMPTY  = 0.0
         LOGIT_SOLID  = 1.0
         LOGIT_PLAYER = 2.0
@@ -248,6 +248,7 @@ class MazeEnv():
         )
         return (self.model.calcLogits(), None)
     def __init__(self, nCoins:int=3, startPosition:(str|tuple)="random", render_mode : (None|str)=None) -> None:
+        self.actionSpace = [0,1,2,3,4]
         self.nCoins=nCoins
         self.startPosition = startPosition
         self.model = MazeModel(
@@ -280,3 +281,5 @@ class MazeEnv():
         if not self.view == None:
             self.view.close()
             self.view = None
+    def validActions(self,s):
+        return self.actionSpace

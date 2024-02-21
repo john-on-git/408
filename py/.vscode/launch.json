@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "Python: Current File",
             "type": "debugpy",
@@ -49,6 +50,14 @@
             "type": "debugpy",
             "request": "launch",
             "program": "jgw_cs408/ttt/ttt_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Python: race_human_interactive.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "jgw_cs408/race/race_human_interactive.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }

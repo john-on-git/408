@@ -10,12 +10,15 @@ if __name__ == "__main__":
     RNG_SEED_INIT=42
     TRAINING_TIME_SECONDS = 600
 
+
+    env = MazeEnv(nCoins=10, startPosition="random")
     agents = [
         #REINFORCEAgent(learningRate=.01, discountRate=.75, baseline=0),
         #MonteCarloAgent(learningRate=.001, discountRate=.75, replayMemoryCapacity=5000, replayFraction=25, epsilon=.99, epsilonDecay=.9999),
         #SARSAAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=.75, epsilonDecay=.999),
-        DQNAgent(learningRate=.001, discountRate=.75, replayMemoryCapacity=5000, replayFraction=25, epsilon=.99, epsilonDecay=.999),
-        #ActorCriticAgent(learningRate=.001, discountRate=.75, replayMemoryCapacity=50000, replayFraction=500, epsilon=.99, epsilonDecay=.9999),
+        #DQNAgent(learningRate=.001, discountRate=.75, replayMemoryCapacity=5000, replayFraction=25, epsilon=.99, epsilonDecay=.999),
+        AdvantageActorCriticAgent(learningRate=.001, actionSpace=env.actionSpace, discountRate=.75, epsilon=.99, epsilonDecay=.9999, validActions=env.validActions),
+        ActorCriticAgent(learningRate=.001, actionSpace=env.actionSpace, discountRate=.75, replayMemoryCapacity=50000, replayFraction=500, epsilon=.99, epsilonDecay=.9999, validActions=env.validActions),
         #REINFORCEAgent(learningRate=.01, discountRate=.75, baseline=0),
         #REINFORCE_MENTAgent(learningRate=.01, discountRate=.75, baseline=0)
     ]
@@ -31,7 +34,6 @@ if __name__ == "__main__":
     for i in range(len(agents)):
         print("Training new ", type(agents[i]).__name__)
         epochs = 0
-        env = MazeEnv(nCoins=10, startPosition="random")
         rngSeed=RNG_SEED_INIT
         observation, _ = env.reset(seed=rngSeed)
         observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
@@ -82,7 +84,7 @@ if __name__ == "__main__":
         agent.save_weights(path, overwrite=True)
 
     #create reward baseline
-    agents.append(RandomAgent())
+    agents.append(RandomAgent(actionSpace=env.actionSpace))
     metrics["reward"].append(list())
     metrics["loss"].append(list())
     maxLen = 0

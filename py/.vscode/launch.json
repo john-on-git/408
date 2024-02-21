@@ -60,6 +60,14 @@
             "program": "jgw_cs408/race/race_human_interactive.py",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Python: tag_human_interactive.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "jgw_cs408/tag/tag_human_interactive.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

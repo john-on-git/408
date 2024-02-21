@@ -4,20 +4,11 @@ from ttt_env import TTTEnv, SearchAgent, Team
 import keyboard
 import pygame
 
-env = TTTEnv(render_mode="human", opponent=None, size=5)
-opponent = SearchAgent(depth=1)#DQNAgent(epsilon=0, learningRate=0, discountRate=0, actionSpace=env.actionSpace)
+env = TTTEnv(render_mode="human", opponent=None, size=3)
+opponent = SearchAgent()#DQNAgent(epsilon=0, learningRate=0, discountRate=0, actionSpace=env.actionSpace)
 #opponent.load_weights("jgw_cs408/checkpoints/TTTParallelDQNAgent.tf")
 env.opponent = opponent
 
-#keyboard.on_press_key('7', lambda _: (env.step(0)))
-#keyboard.on_press_key('8', lambda _: (env.step(1)))
-#keyboard.on_press_key('9', lambda _: (env.step(2)))
-#keyboard.on_press_key('4', lambda _: (env.step(3)))
-#keyboard.on_press_key('5', lambda _: (env.step(4)))
-#keyboard.on_press_key('6', lambda _: (env.step(5)))
-#keyboard.on_press_key('1', lambda _: (env.step(6)))
-#keyboard.on_press_key('2', lambda _: (env.step(7)))
-#keyboard.on_press_key('3', lambda _: (env.step(8)))
 keyboard.on_press_key('esc', lambda _: exit())
 
 _ = env.opponentAct(opponent) #CPU goes first

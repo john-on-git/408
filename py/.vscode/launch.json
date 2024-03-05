@@ -68,6 +68,14 @@
             "program": "jgw_cs408/tag/tag_human_interactive.py",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Python: tag_train.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "jgw_cs408/tag/tag_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

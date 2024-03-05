@@ -4,7 +4,8 @@ from jgw_cs408.agents import *
 import pygame
 
 env = TagEnv(render_mode="human")
-agent = RandomAgent(env.actionSpace)
+agent = DQNAgent(0, env.actionSpace)
+agent.load_weights("checkpoints\\tag" + type(agent).__name__ + ".tf")
 TICK_RATE_HZ = 100
 tickDelay = 1/TICK_RATE_HZ
 countDownLength = 2 * TICK_RATE_HZ

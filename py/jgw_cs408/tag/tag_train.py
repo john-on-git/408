@@ -2,7 +2,7 @@ import random
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from tag_env import RaceEnv
+from tag_env import TagEnv
 from jgw_cs408.agents import *
 import time
 
@@ -11,7 +11,7 @@ if __name__ == "__main__":
     TRAINING_TIME_SECONDS = 300
     EPSILON_EVALUATION_WINDOW_SIZE = 10 #epsilon is lowered (difficulty is increased) if the agent scores well in at least this many games in a row
 
-    env = RaceEnv()
+    env = TagEnv()
     agents = [
         DQNAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=0.25, epsilonDecay=.9, actionSpace=env.actionSpace)
         #REINFORCE_MENTAgent(learningRate=0.01, discountRate=.9, actionSpace=env.actionSpace)
@@ -65,6 +65,7 @@ if __name__ == "__main__":
                     As = []
                     Rs = []
                     epochRunning = False
+                    print("Epoch ", epochs, " Done (r = ", metrics["reward"][i][-1], sep="")
                 observation = nextObservation
             epochs+=1
             rngSeed+=1
@@ -73,8 +74,7 @@ if __name__ == "__main__":
             
         #save the agents
         for agent in agents:
-            #path = "checkpoints\\" + type(agent).__name__ + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + ".tf"
-            path = "checkpoints\\TTT" + type(agent).__name__ + ".tf"
+            path = "checkpoints\\tag" + type(agent).__name__ + ".tf"
             agent.save_weights(path, overwrite=True)
         
         def plot(target, agents, yss, metricName):

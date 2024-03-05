@@ -8,6 +8,7 @@ import math
 
 #TODO
     #all agents need to implement blocking of invalid actions. This also needs to be applied to the training logic, i.e. called by q()
+    #remove flatten layer?
 
 class RandomAgent():
     def __init__(self, actionSpace):
@@ -21,35 +22,72 @@ class RandomAgent():
     def save_weights(self, path, overwrite):
         pass
 
-class REINFORCEAgent(Model):
-    def __init__(self, learningRate, actionSpace, hiddenLayers=[layers.Dense(16, activation=tf.nn.relu),layers.Dense(32, activation=tf.nn.relu)], discountRate=0, baseline=0, epsilon=0, epsilonDecay=1):
+class QAgent(Model):
+    def __init__(self, learningRate, actionSpace, hiddenLayers=[layers.Dense(16, activation=tf.nn.relu),layers.Dense(32, activation=tf.nn.relu)], epsilon=0, epsilonDecay=1):
         super().__init__()
-        self.discountRate = discountRate
-        self.baseline = baseline
         self.epsilon = epsilon
         self.epsilonDecay = epsilonDecay
-        self.learningRate = learningRate
         self.actionSpace = actionSpace
 
         #initLayers
         self.modelLayers = []
         self.modelLayers.append(layers.Flatten())
         self.modelLayers.extend(hiddenLayers)
-        self.modelLayers.append(layers.Dense(len(actionSpace), tf.nn.softmax))
+        self.modelLayers.append(layers.Dense(len(actionSpace)))
         self.compile(
-            optimizer=tf.optimizers.Adam(),
+            optimizer=tf.optimizers.Adam(learning_rate=learningRate),
             metrics="loss"
         )
-    def call(self, observation):
-        for layer in self.modelLayers:
-            observation = layer(observation)
-        return observation
-    def act(self, observation):
-        self.epsilon*=self.epsilonDecay
+    def call(self, s):
+        for layer in self.layers:
+            s = layer(s)
+        return s
+    def act(self, s):
+        self.epsilon *= self.epsilonDecay
         if random.random()<self.epsilon: #chance to act randomly
             return random.choice(self.actionSpace)
         else:
-            return int(tf.random.categorical(logits=self(observation),num_samples=1))
+            return int(tf.argmax(self(s)[0])) #follow greedy policy
+    def train_step(self, x):
+        pass
+    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
+        pass
+class PolicyAgent(Model):
+    def __init__(self, learningRate, actionSpace, hiddenLayers=[layers.Dense(16, activation=tf.nn.relu),layers.Dense(32, activation=tf.nn.relu)], epsilon=0, epsilonDecay=1):
+        super().__init__()
+        self.epsilon = epsilon
+        self.epsilonDecay = epsilonDecay
+        self.actionSpace = actionSpace
+
+        #initLayers
+        self.modelLayers = []
+        self.modelLayers.append(layers.Flatten())
+        self.modelLayers.extend(hiddenLayers)
+        self.modelLayers.append(layers.Dense(len(actionSpace)))
+        self.compile(
+            optimizer=tf.optimizers.Adam(learning_rate=learningRate),
+            metrics="loss"
+        )
+    def call(self, s):
+        for layer in self.layers:
+            s = layer(s)
+        return s
+    def act(self, s):
+        self.epsilon *= self.epsilonDecay
+        if random.random()<self.epsilon: #chance to act randomly
+            return random.choice(self.actionSpace)
+        else:
+            return int(tf.random.categorical(logits=self(s),num_samples=1))
+    def train_step(self, x):
+        pass
+    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
+        pass
+
+class REINFORCEAgent(PolicyAgent):
+    def __init__(self, learningRate, actionSpace, hiddenLayers=[layers.Dense(16, activation=tf.nn.relu),layers.Dense(32, activation=tf.nn.relu)], epsilon=0, epsilonDecay=1, discountRate=0, baseline=0):
+        super().__init__(learningRate, actionSpace, hiddenLayers, epsilon, epsilonDecay)
+        self.discountRate = discountRate
+        self.baseline = baseline
     def train_step(self, eligibilityTraces, r):
         #calculate sum of eligibility traces
         grads = [None] * len(eligibilityTraces[0])
@@ -61,7 +99,7 @@ class REINFORCEAgent(Model):
                     grads[i] += eligibilityTrace[i]
         
         #multiply by learning rate, reward
-        grads = map(lambda x: self.learningRate * (r-self.baseline) * x, grads)
+        grads = map(lambda x: (r-self.baseline) * x, grads)
         
         self.optimizer.apply_gradients(zip(
             grads,
@@ -89,37 +127,12 @@ class REINFORCEAgent(Model):
             
             self.train_step(eligibilityTraces, float(sum(rewardsThisEpoch)))
 
-#REINFORCE w/ entropy
-class REINFORCE_MENTAgent(Model):
-    def __init__(self, learningRate, actionSpace, hiddenLayers=[layers.Dense(16, activation=tf.nn.relu),layers.Dense(32, activation=tf.nn.relu)], entropyWeight=1, discountRate=0, baseline=0, epsilon=0, epsilonDecay=1):
-        super().__init__()
+class REINFORCE_MENTAgent(PolicyAgent):
+    def __init__(self, learningRate, actionSpace, hiddenLayers=[layers.Dense(16, activation=tf.nn.relu),layers.Dense(32, activation=tf.nn.relu)], epsilon=0, epsilonDecay=1, discountRate=0, baseline=0):
+        super().__init__(actionSpace, hiddenLayers, epsilon, epsilonDecay)
         self.discountRate = discountRate
         self.baseline = baseline
-        self.epsilon = epsilon
-        self.epsilonDecay = epsilonDecay
         self.learningRate = learningRate
-        self.actionSpace = actionSpace
-        self.entropyWeight = entropyWeight
-
-        #initLayers
-        self.modelLayers = []
-        self.modelLayers.append(layers.Flatten())
-        self.modelLayers.extend(hiddenLayers)
-        self.modelLayers.append(layers.Dense(len(actionSpace), tf.nn.softmax))
-        self.compile(
-            optimizer=tf.optimizers.Adam(),
-            metrics="loss"
-        )
-    def call(self, observation):
-        for layer in self.modelLayers:
-            observation = layer(observation)
-        return observation
-    def act(self, observation):
-        self.epsilon*=self.epsilonDecay
-        if random.random()<self.epsilon: #chance to act randomly
-            return random.choice(self.actionSpace)
-        else:
-            return int(tf.random.categorical(logits=self(observation),num_samples=1))
     def train_step(self, eligibilityTraces, r):
         #calculate sum of eligibility traces
         grads = [None] * len(eligibilityTraces[0])
@@ -131,7 +144,7 @@ class REINFORCE_MENTAgent(Model):
                     grads[i] += eligibilityTrace[i]
         
         #multiply by learning rate, reward
-        grads = map(lambda x: self.learningRate * (r-self.baseline) * x, grads)
+        grads = map(lambda x: (r-self.baseline) * x, grads)
         
         self.optimizer.apply_gradients(zip(
             grads,
@@ -168,89 +181,12 @@ class REINFORCE_MENTAgent(Model):
             
             self.train_step(eligibilityTraces, sum(rewardsThisEpoch) + self.entropyWeight*entropy(observationsThisEpoch))
 
-class MonteCarloAgent(Model):
-    def __init__(self, learningRate, actionSpace, hiddenLayers=[layers.Dense(16, activation=tf.nn.relu),layers.Dense(32, activation=tf.nn.relu)], discountRate=0, baseline=0, epsilon=0, epsilonDecay=1, replayMemoryCapacity=0, replayFraction=5,):
-        super().__init__()
-        self.discountRate = discountRate
-        self.baseline = baseline
-        self.epsilon = epsilon
-        self.epsilonDecay = epsilonDecay
-        self.learningRate = learningRate
-        self.numOutputs = actionSpace
-        self.replayMemorySs = []
-        self.replayMemoryAs  = []
-        self.replayMemoryRs  = []
-        self.replayMemoryCapacity = replayMemoryCapacity
-        self.replayFraction = replayFraction
-
-        #initLayers
-        self.modelLayers = []
-        self.modelLayers.append(layers.Flatten())
-        self.modelLayers.extend(hiddenLayers)
-        self.modelLayers.append(layers.Dense(len(actionSpace), tf.nn.softmax))
-        self.compile(
-            optimizer=tf.optimizers.Adam(),
-            metrics="loss"
-        )
-    def call(self, observation):
-        for layer in self.modelLayers:
-            observation = layer(observation)
-        return observation
-    def act(self, observation):
-        self.epsilon*=self.epsilonDecay
-        if random.random()<self.epsilon: #chance to act randomly
-            return random.choice(self.numOutputs)
-        else:
-            return int(tf.random.categorical(logits=self(observation),num_samples=1))
-    def train_step(self, x):
-        s, a, r = x
-        @tf.function
-        def l(s,a,r): #from atari paper
-            x = r-self(s)[0][a]
-            return (x*x)
-        
-        self.optimizer.minimize(lambda: l(s,a,r), self.trainable_weights)
-        return {"loss":l(s,a,r)}
-    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
-        def sumOfDiscountedFutureRewards(discountRate, futureRewards):
-            sumOfDiscountedFutureRewards = futureRewards[0]
-            for i in range(1, len(futureRewards)):
-                sumOfDiscountedFutureRewards += (futureRewards[i] * discountRate)
-                discountRate*=discountRate
-            return np.float32(sumOfDiscountedFutureRewards)
-        if endOfEpoch:
-            #add transitions
-            for i in range(len(observationsThisEpoch)):
-                self.replayMemorySs.append(observationsThisEpoch[i])
-                self.replayMemoryAs.append(actionsThisEpoch[i])
-                self.replayMemoryRs.append(sumOfDiscountedFutureRewards(self.discountRate, rewardsThisEpoch[i:]))
-                if len(self.replayMemorySs)>self.replayMemoryCapacity: #if this puts us over capacity remove the oldest transition to put us back under cap
-                    self.replayMemorySs.pop(0)
-                    self.replayMemoryAs.pop(0)
-                    self.replayMemoryRs.pop(0)
-            
-            #build the minibatch
-            miniBatchS1s = []
-            miniBatchAs  = []
-            miniBatchRs  = []
-            
-            for i in random.sample(range(len(self.replayMemorySs)), min(len(self.replayMemorySs), int(self.replayMemoryCapacity/self.replayFraction))):
-                miniBatchS1s.append(self.replayMemorySs[i])
-                miniBatchAs.append(self.replayMemoryAs[i])
-                miniBatchRs.append(self.replayMemoryRs[i])
-            dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs))
-            self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minitbatch
-
 #Replay method from Playing Atari with Deep Reinforcement Learning, Mnih et al (Algorithm 1).
-class DQNAgent(Model):
-    def __init__(self, learningRate, actionSpace, hiddenLayers=[layers.Dense(16, activation=tf.nn.relu),layers.Dense(32, activation=tf.nn.relu)], entropyWeight=1, discountRate=0, baseline=0, epsilon=0, epsilonDecay=1, replayMemoryCapacity=0, replayFraction=5):
-        super().__init__()
+class DQNAgent(QAgent):
+    def __init__(self, learningRate, actionSpace, hiddenLayers=[layers.Dense(16, activation=tf.nn.relu),layers.Dense(32, activation=tf.nn.relu)], epsilon=0, epsilonDecay=1, discountRate=0, baseline=0, replayMemoryCapacity=0, replayFraction=5, entropyWeight=1):
+        super().__init__(learningRate, actionSpace, hiddenLayers, epsilon, epsilonDecay)
         self.discountRate = discountRate
         self.baseline = baseline
-        self.epsilon = epsilon
-        self.epsilonDecay = epsilonDecay
-        self.learningRate = learningRate
-        self.actionSpace = actionSpace
         self.replayMemoryS1s = []
         self.replayMemoryA1s = []   
         self.replayMemoryRs  = []
@@ -258,26 +194,6 @@ class DQNAgent(Model):
         self.replayMemoryCapacity = replayMemoryCapacity
         self.replayFraction = replayFraction
         self.entropyWeight=entropyWeight
-
-        #initLayers
-        self.modelLayers = []
-        self.modelLayers.append(layers.Flatten())
-        self.modelLayers.extend(hiddenLayers)
-        self.modelLayers.append(layers.Dense(len(actionSpace)))
-        self.compile(
-            optimizer=tf.optimizers.Adam(),
-            metrics="loss"
-        )
-    def call(self, s):
-        for layer in self.modelLayers:
-            s = layer(s)
-        return s
-    def act(self, s):
-        self.epsilon *= self.epsilonDecay
-        if random.random()<self.epsilon: #chance to act randomly
-            return random.choice(self.actionSpace)
-        else:
-            return int(tf.argmax(self(s)[0])) #follow greedy policy
     def train_step(self, x):
         def l(s1,a1,r,s2): #from atari paper    
             q2 = self.discountRate*tf.reduce_max(self(s2)) #estimated q-value for on-policy action for s2
@@ -336,13 +252,9 @@ class DQNAgent(Model):
 #same as above but SARSA instead
 class SARSAAgent(Model):
     def __init__(self, learningRate, actionSpace, hiddenLayers=[layers.Dense(16, activation=tf.nn.relu),layers.Dense(32, activation=tf.nn.relu)], entropyWeight=1, discountRate=0, baseline=0, epsilon=0, epsilonDecay=1, replayMemoryCapacity=0, replayFraction=5):
-        super().__init__()
+        super().__init__(learningRate, actionSpace, hiddenLayers, epsilon, epsilonDecay)
         self.discountRate = discountRate
         self.baseline = baseline
-        self.epsilon = epsilon
-        self.epsilonDecay = epsilonDecay
-        self.learningRate = learningRate
-        self.actionSpace = actionSpace
         self.replayMemoryS1s = []
         self.replayMemoryA1s = []
         self.replayMemoryRs  = []
@@ -351,26 +263,6 @@ class SARSAAgent(Model):
         self.replayMemoryCapacity = replayMemoryCapacity
         self.replayFraction = replayFraction
         self.entropyWeight=entropyWeight
-
-        #initLayers
-        self.modelLayers = []
-        self.modelLayers.append(layers.Flatten())
-        self.modelLayers.extend(hiddenLayers)
-        self.modelLayers.append(layers.Dense(len(actionSpace)))
-        self.compile(
-            optimizer=tf.optimizers.Adam(),
-            metrics="loss"
-        )
-    def call(self, s):
-        for layer in self.modelLayers:
-            s = layer(s)
-        return s
-    def act(self, s):
-        self.epsilon *= self.epsilonDecay #epsilon decay
-        if random.random()<self.epsilon: #chance to act randomly
-            return random.choice(self.actionSpace)
-        else:
-            return int(tf.argmax(self(s)[0])) #follow greedy policy
     def train_step(self, x):
         @tf.function
         def l(s1,a1,r,s2,a2): #from atari paper
@@ -413,7 +305,7 @@ class SARSAAgent(Model):
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s, miniBatchA2s))
                 self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minibatch
 
-class Actor(Model):
+class Actor(PolicyAgent):
     def __init__(self, learningRate, actionSpace):
         super().__init__()
         self.modelLayers = [
@@ -429,7 +321,7 @@ class Actor(Model):
             metrics=["loss"]
         )
     def call(self, s):
-        for layer in self.modelLayers:
+        for layer in self.layers:
             s = layer(s)
         return s
     def train_step(self, x):
@@ -455,7 +347,7 @@ class Critic(Model):
             metrics=["loss"]
         )
     def call(self, s):
-        for layer in self.modelLayers:
+        for layer in self.layers:
             s = layer(s)
         return s
     def train_step(self, x):
@@ -566,7 +458,7 @@ class AdvantageActorCriticAgent (Model):
         ]
         self.compile()
     def call(self, observation):
-        for layer in self.modelLayers:
+        for layer in self.layers:
             observation = layer(observation)
         return observation
     def act(self, s):

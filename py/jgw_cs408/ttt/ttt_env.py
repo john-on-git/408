@@ -7,8 +7,8 @@ from jgw_cs408.observer import Observable, Observer
 import tensorflow as tf
 import random
 
-REWARD_PARTIAL_CHAIN = 10
-REWARD_MULT_COMPLETE_CHAIN = 2
+REWARD_PARTIAL_CHAIN = 2
+REWARD_WIN = 10
 REWARD_PER_TIME_STEP = 1
 REWARD_INVALID = -100
 
@@ -178,7 +178,6 @@ class TTTModel (Observable):
     def __init__(self, size=3) -> None:
         super().__init__()
         self.size = size
-        self.rewardWin = (REWARD_PARTIAL_CHAIN**self.size)*REWARD_MULT_COMPLETE_CHAIN
         self.board = []
         for i in range(self.size):
             self.board.append([])
@@ -186,7 +185,7 @@ class TTTModel (Observable):
                 self.board[i].append(Team.EMPTY)
         self.terminated = False
         self.truncated = False
-    def reset(self) -> None:
+    def reset(self, _) -> None:
         self.board = []
         for i in range(self.size):
             self.board.append([])
@@ -194,6 +193,7 @@ class TTTModel (Observable):
                 self.board[i].append(Team.EMPTY)
         self.truncated = False
         self.terminated = False
+        return (self.calcLogits(Team.NOUGHT), None)
     def calcLogits(self, actor :Team) -> list[float]:
         def logit(actor : Team, cell:Team):
             if cell==Team.EMPTY:
@@ -284,7 +284,7 @@ class TTTModel (Observable):
                 self.board[actY][actX] = actor
                 longestChains = calcLongestChains(self.size)
                 if longestChains[actor]==self.size: #end game if there's a winner
-                    reward = self.rewardWin #your winner!
+                    reward = REWARD_WIN**self.size #player won
                     self.truncated = True
                 else:
                     #check to end game as a draw, if no cell is empty
@@ -360,9 +360,8 @@ class TTTView(Observer):
 
 class TTTEnv():
     def reset(self, seed=None) -> None:
-        self.model.reset()
-        return (self.model.calcLogits(Team.NOUGHT), None)
-    def __init__(self, render_mode : (None|str)=None, opponent=SearchAgent(), size=3) -> None:
+        return self.model.reset(seed)
+    def __init__(self, render_mode:(None|str)=None, opponent=SearchAgent(), size=3) -> None:
         self.actionSpace = [0,1,2,3,4,5,6,7,8]
         self.model = TTTModel(size=size)
         if (render_mode=="human"):

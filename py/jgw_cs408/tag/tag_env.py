@@ -3,6 +3,7 @@ import pygame
 from threading import Thread
 from jgw_cs408.observer import Observable, Observer
 import math
+import random
 
 class Entity():
     def __init__(self, rect:pygame.Rect, rotation:float=0) -> None:
@@ -26,35 +27,43 @@ class Mover(Entity):
         y = math.sin(self.rotation)*self.speed
         self.rect = self.rect.move(x,y)
 class TagModel(Observable):
-    def __init__(self, nSeekers = 1, speedRatio = 4/5, maxTime=500, arenaX=500, arenaY=500) -> None:
+    def __init__(self, nSeekers, speedRatio, maxTime, arenaX, arenaY) -> None:
         super().__init__()
         self.scale = 10
-        runnerSpeed = 1
+        runnerSpeed = 5
+        runnerRotationRate = math.pi/30
         #load hitbox masks
         runnerHitboxFactory         = pygame.transform.scale_by(pygame.image.load("jgw_cs408/img/runner.png"), self.scale).get_rect
         self.seekerHitboxFactory    = pygame.transform.scale_by(pygame.image.load("jgw_cs408/img/seeker.png"), self.scale).get_rect
 
         #parameters to reset to when RaceModel.reset() is called
-        self.runnerInitialPosition = (100 * self.scale, 100 * self.scale)
+        self.runnerInitialPosition = (arenaX/2 * self.scale, arenaY/2 * self.scale)
         self.runnerInitialRotation = math.radians(90)
         self.nSeekers = nSeekers
         self.seekerSpeed = runnerSpeed * speedRatio
 
         #init entities
         self.arena = Entity(pygame.Rect(0,0,arenaX*self.scale,arenaY*self.scale), 0) #game ends if agent is not in contact with this rect
-        self.runner = Mover(rect=runnerHitboxFactory(), rotation=self.runnerInitialRotation, speed=runnerSpeed * self.scale)
+        self.runner = Mover(rect=runnerHitboxFactory(), rotation=self.runnerInitialRotation, speed=runnerSpeed * self.scale, rotationRate=runnerRotationRate)
         self.runner.rect.center = self.runnerInitialPosition
         self.runners = [self.runner]
         self.seekers = []
         for _ in range(self.nSeekers):
             seeker = Mover(rect=self.seekerHitboxFactory(), rotation=0, speed=self.seekerSpeed * self.scale)
-            seeker.rect.center = (250 * self.scale,250 * self.scale) #TODO random positioning
+            seeker.rect.center = self.genSeekerPosition() #TODO random positioning
             self.seekers.append(seeker)
 
         self.terminated = False
         self.truncated = False
         self.time = 0
         self.maxTime = maxTime
+    def genSeekerPosition(self,dist=None):
+        dist = random.randint(100*self.scale,200*self.scale) if dist==None else dist
+        x,y = self.runner.rect.center
+        angle = random.random() * 360
+        x += math.cos(angle)*dist
+        y += math.sin(angle)*dist
+        return (x,y)
     def reset(self) -> tuple[list[float], int, bool, bool, None]:
         self.runner.rect.center = self.runnerInitialPosition
         self.runner.rotation = self.runnerInitialRotation
@@ -63,14 +72,14 @@ class TagModel(Observable):
         self.seekers.clear()
         for _ in range(self.nSeekers):
             seeker = Mover(rect=self.seekerHitboxFactory(), rotation=0, speed=self.seekerSpeed * self.scale)
-            seeker.rect.center = (250 * self.scale,250 * self.scale) #TODO random positioning
+            seeker.rect.center = self.genSeekerPosition() #TODO random positioning
             self.seekers.append(seeker)
 
         self.terminated = False
         self.truncated = False
         self.time = 0
         self.notify() #redraw
-        return (self.calcLogits(), 0, self.terminated, self.truncated, None)
+        return (self.calcLogits(), None)
     def step(self, action : (0|1|2) = 1) -> tuple[tuple, int, bool, bool, None]:
         reward = 1 #baseline per step
         if not self.terminated and not self.truncated:
@@ -184,8 +193,8 @@ class TagView(Observer):
 class TagEnv():
     def reset(self, seed:int=None) -> None:
         return self.model.reset()
-    def __init__(self, render_mode : (None|str)=None) -> None:
-        self.model = TagModel()
+    def __init__(self, render_mode : (None|str)=None, nSeekers = 1, speedRatio = 2/3, maxTime=200, arenaX=500, arenaY=500) -> None:
+        self.model = TagModel(nSeekers, speedRatio, maxTime, arenaX, arenaY)
         self.actionSpace = [0,1,2]
         if (render_mode=="human"):
             self.view = TagView(resolution=pygame.Vector2(750,500), model=self.model)

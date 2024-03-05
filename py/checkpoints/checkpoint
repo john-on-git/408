@@ -1,2 +1,2 @@
-model_checkpoint_path: "MazeActorCriticAgent.tf_critic.tf"
-all_model_checkpoint_paths: "MazeActorCriticAgent.tf_critic.tf"
+model_checkpoint_path: "tagDQNAgent.tf"
+all_model_checkpoint_paths: "tagDQNAgent.tf"

@@ -22,7 +22,7 @@ class Coin(Entity):
         super().__init__(coords)
 
 class MazeModel(Observable):
-    def __init__(self, squares : list[list[Square]], playerPosition:(str|tuple), nCoins:int, gameLength:int=None, seed:int=None) -> None:
+    def __init__(self, squares : list[list[Square]], startPosition:(str|tuple), nCoins:int, gameLength:int=None, seed:int=None) -> None:
         super().__init__()
         #assert shape is ok (all rows must be the same length)
         WIDTH = len(squares[0])
@@ -30,7 +30,7 @@ class MazeModel(Observable):
             assert len(row) == WIDTH
         #init constants
         self.SQUARES = squares
-        self.INITIAL_PLAYER_POSITION = playerPosition
+        self.INITIAL_PLAYER_POSITION = startPosition
         self.GAME_LENGTH = gameLength
         self.N_COINS = nCoins
         self.EMPTY_SQUARES = [] #pre-calculated for placing entities
@@ -53,8 +53,9 @@ class MazeModel(Observable):
             self.PLAYER_AVATAR = Entity(self.INITIAL_PLAYER_POSITION)
         for _ in range(self.N_COINS): #add coins
             self.placeCoin()
+        self.notify() #update view
         return (self.calcLogits(), None)
-    def step(self, action:(0|1|2|3|4)) -> tuple[list[float], int, bool, bool, None]:
+    def step(self, action:(0|1|2|3|4)) -> tuple[list[float], int, bool, bool, dict]:
         def canMoveTo(coords : tuple) -> bool:
             y,x = coords
             return x>=0 and y>=0 and y<len(self.SQUARES) and x<len(self.SQUARES[0]) and self.SQUARES[y][x] == Square.EMPTY
@@ -96,11 +97,10 @@ class MazeModel(Observable):
                 self.terminated = True #end of game because of time out
             elif self.food<=0:
                 self.truncated = True #end of game because the player died
-        self.notify()
-        
         #reward = reward
         logits = self.calcLogits()
-        info = None
+        info = {}
+        self.notify() #update view
         return (logits, reward, self.terminated, self.truncated, info)
     def calcLogits(self) -> list[float]:
         LOGIT_EMPTY  = 0.0
@@ -219,10 +219,16 @@ class MazeView(Observer):
                     viewModel[1].append((x*self.xSize, y*self.ySize))
 class MazeEnv():
     def reset(self,seed:int=None) -> None:
-        return self.model.reset(seed = seed)
-    def __init__(self, nCoins:int=3, startPosition:(str|tuple)="random", render_mode : (None|str)=None) -> None:
-        self.actionSpace = [0,1,2,3,4]
-        self.startPosition = startPosition
+        return self.model.reset(seed)
+    def __init__(self, render_mode : (None|str)=None, nCoins:int=3, startPosition:(None|tuple[int,int])=None) -> None:
+        """
+        Initialize a new TagEnv.
+
+        Args.
+        render_mode: The environment will launch with a human-readable GUI if render_mode is exactly "human".
+        nCoins: Number of coins present at each step. Lower values increase the environment difficulty.
+        startPosition: Initial coordinates of agent at each epoch, or None for random initial coordinates. Setting to random increases the environment difficulty.
+        """
         self.model = MazeModel(
             squares = [ #contents of each square
                 [Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY],
@@ -232,13 +238,14 @@ class MazeEnv():
                 [Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY],
                 [Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY, Square.EMPTY],
             ],
-            playerPosition=startPosition,
+            startPosition=startPosition,
             nCoins=nCoins,
             gameLength=100
         )
         if (render_mode=="human"):
             self.view = MazeView(resolution=(500,500), world=self.model)
             self.model.addObserver(self.view)
+            self.model.notify()
             self.view.open()
         else:
             self.view = None
@@ -254,4 +261,4 @@ class MazeEnv():
             self.view.close()
             self.view = None
     def validActions(self,s):
-        return self.actionSpace
+        return [0,1,2,3,4]

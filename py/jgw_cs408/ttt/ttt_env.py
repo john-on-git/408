@@ -13,8 +13,8 @@ REWARD_PER_TIME_STEP = 1
 REWARD_INVALID = -100
 
 #agent that follows the optimal policy by performing a full search
-class SearchAgent():
-    def  __init__(self, epsilon=0, epsilonDecay=0, depth=-1) -> None:
+class TTTSearchAgent():
+    def  __init__(self, epsilon=0, epsilonDecay=1, depth=-1) -> None:
         self.epsilon=epsilon
         self.epsilonDecay = epsilonDecay
         self.depth=depth
@@ -175,9 +175,10 @@ class Team(Enum):
     NOUGHT = 1.0,
     CROSS = 2.0
 class TTTModel (Observable):
-    def __init__(self, size=3) -> None:
+    def __init__(self, size, opponent) -> None:
         super().__init__()
         self.size = size
+        self.opponent = opponent
         self.board = []
         for i in range(self.size):
             self.board.append([])
@@ -186,13 +187,12 @@ class TTTModel (Observable):
         self.terminated = False
         self.truncated = False
     def reset(self, _) -> None:
-        self.board = []
-        for i in range(self.size):
-            self.board.append([])
-            for _ in range(self.size):
-                self.board[i].append(Team.EMPTY)
+        for i in range(len(self.board)):
+            for j in range(len(self.board[i])):
+                self.board[i][j] = Team.EMPTY
         self.truncated = False
         self.terminated = False
+        self.notify() #update view
         return (self.calcLogits(Team.NOUGHT), None)
     def calcLogits(self, actor :Team) -> list[float]:
         def logit(actor : Team, cell:Team):
@@ -207,7 +207,20 @@ class TTTModel (Observable):
             for cell in row:
                 logits.append(logit(actor, cell))
         return logits
-    def step(self, actor : Team, action : int) -> list[list[float], int, bool, bool, None]:
+    def step(self, action): #both sides move
+        if not action == None:
+            s, rew, terminated, truncated, info = self.halfStep(Team.NOUGHT, action) #handle player action
+            if not (terminated or truncated):
+                opponentAction = self.opponent.act(tf.expand_dims(tf.convert_to_tensor(self.calcLogits(Team.CROSS)),0))
+                if self.board[int(opponentAction/self.size)][opponentAction%self.size] == Team.EMPTY: #enact move if valid
+                    s, _, terminated, truncated, info = self.halfStep(Team.CROSS, opponentAction) #handle CPU action
+                    return (s, rew, terminated, truncated, info)
+                else:
+                    self.terminated = True
+                    raise Exception("Tic-Tac-Toe opponent made invalid move.")
+            else:
+                return (s, rew, True, truncated, info) #last move of the game
+    def halfStep(self, actor : Team, action : int) -> list[list[float], int, bool, bool, None]: #one side moves
         def calcLongestChains(n) -> dict[Team, int]:
             longestChains = {Team.NOUGHT:0, Team.CROSS:0}
             #check horizontals
@@ -242,7 +255,7 @@ class TTTModel (Observable):
                                 longestChains[chain[0]] = chain[1]
                         else: #chain ends
                             chain = None
-            #check diagonals
+            #check diagonals (lines that don't intersect corners don't count as they can't contribute to a winning line)
             #\
             chain = None
             for i in range(n):
@@ -276,31 +289,30 @@ class TTTModel (Observable):
 
             return longestChains
         reward = 0
-        validAction = True
         actX = action%self.size
         actY = int(action/self.size)
         if not self.terminated and not self.truncated:
-            if self.board[actY][actX] == Team.EMPTY: #enact move if valid
+            if self.board[actY][actX] == Team.EMPTY: #enact the move if it's valid
                 self.board[actY][actX] = actor
                 longestChains = calcLongestChains(self.size)
-                if longestChains[actor]==self.size: #end game if there's a winner
-                    reward = REWARD_WIN**self.size #player won
+                if longestChains[actor]==self.size: #end the game if there's a winner
+                    reward = REWARD_WIN**self.size #distribute reward for the win
                     self.truncated = True
                 else:
-                    #check to end game as a draw, if no cell is empty
+                    #end the game as a draw if all cells are full
                     self.terminated = True
                     for row in self.board:
                         for cell in row:
                             if cell == Team.EMPTY:
                                 self.terminated = False
-                    reward += REWARD_PARTIAL_CHAIN**longestChains[actor] #add reward for partial chains
+                    reward += REWARD_PARTIAL_CHAIN**longestChains[actor] #distribute reward for partial chains
             else:
-                validAction = False
-                reward = REWARD_INVALID #don't make invalid moves
-            self.notify() #redraw
-            reward+=REWARD_PER_TIME_STEP #for time
-            #for 2-in-a-row
-        return (self.calcLogits(actor), reward, self.terminated, self.truncated, validAction)
+                reward = REWARD_INVALID #distribute negative reward for invalid moves
+            reward+=REWARD_PER_TIME_STEP #distribute reward for time
+        logits = self.calcLogits(actor)
+        info = {}
+        self.notify() #update view
+        return (logits, reward, self.terminated, self.truncated, info)
     def notify(self) -> None:
         observer: Observer
         for observer in super().getObservers():
@@ -361,40 +373,30 @@ class TTTView(Observer):
 class TTTEnv():
     def reset(self, seed=None) -> None:
         return self.model.reset(seed)
-    def __init__(self, render_mode:(None|str)=None, opponent=SearchAgent(), size=3) -> None:
-        self.actionSpace = [0,1,2,3,4,5,6,7,8]
-        self.model = TTTModel(size=size)
+    def __init__(self, render_mode:(None|str)=None, size=3, opponent=TTTSearchAgent()) -> None:
+        """
+        Initialize a new TTTEnv.
+
+        Args.
+        render_mode: The environment will launch with a human-readable GUI if render_mode is exactly "human".
+        size: Equal to the width and height of the game board.
+        opponent: Agent responsible for the enemy AI. The provided agent be guaranteed to provide a valid action for all game states.
+        """
+        self.model = TTTModel(size, opponent)
         if (render_mode=="human"):
             self.view = TTTView(resolution=(600,600), model=self.model)
             self.view.open()
         else:
             self.view = None
-        self.opponent = opponent
-    def opponentAct(self, opponent=None):
-        if opponent==None: #use own opponent if none was provided
-            opponent=self.opponent
-        #get a valid action from the opponent and return it
-        opponentActionValid = False
-        while not opponentActionValid:
-            opponentAction = opponent.act(tf.expand_dims(tf.convert_to_tensor(self.model.calcLogits(Team.CROSS)),0))
-            s2, _, terminated, truncated, opponentActionValid = self.model.step(Team.CROSS, opponentAction) #handle CPU action
-        return (s2, None, terminated, truncated, None)
     def step(self, action):
-        if not action == None:
-            s1, rew, terminated, truncated, playerValid = self.model.step(Team.NOUGHT, action) #handle player action
-            if playerValid and not (terminated or truncated):
-                s2, _, terminated, truncated, _ = self.opponentAct()
-                return (s2, rew, terminated, truncated, None)
-            else:
-                self.model.terminated = True
-                return (s1, rew, True, truncated, None) #return w/ invalid action warning
+        self.model.step(action)
     def close(self):
         if not self.view == None:
             self.view.close()
             self.view = None
     def validActions(self,s):
         valid = []
-        for action in self.actionSpace:
+        for action in range(self.model.size**2):
             if s[action] == 0.0:
                 valid.append()
         return valid

@@ -2,7 +2,7 @@ import random
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from ttt_env import TTTEnv, SearchAgent
+from ttt_env import TTTEnv, TTTSearchAgent
 from jgw_cs408.agents import *
 import time
 
@@ -11,7 +11,7 @@ if __name__ == "__main__":
     TRAINING_TIME_SECONDS = 12000
     EPSILON_EVALUATION_WINDOW_SIZE = 10 #epsilon is lowered (difficulty is increased) if the agent scores well in at least this many games in a row
 
-    env = TTTEnv(opponent=SearchAgent(epsilon=1, epsilonDecay=1)) #epsilon is modified based on highest agent performance
+    env = TTTEnv(opponent=TTTSearchAgent(epsilon=1, epsilonDecay=1)) #epsilon is modified based on highest agent performance
     agents = [
         #DQNAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=0.25, epsilonDecay=.9, actionSpace=env.actionSpace)
         #REINFORCE_MENTAgent(learningRate=0.01, discountRate=.9, actionSpace=env.actionSpace)

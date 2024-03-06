@@ -80,7 +80,7 @@ class TagModel(Observable):
         self.time = 0
         self.notify() #redraw
         return (self.calcLogits(), None)
-    def step(self, action : (0|1|2) = 1) -> tuple[tuple, int, bool, bool, None]:
+    def step(self, action : (0|1|2) = 1) -> tuple[tuple, int, bool, bool, dict]:
         reward = 1 #baseline per step
         if not self.terminated and not self.truncated:
             self.time+=1
@@ -111,8 +111,8 @@ class TagModel(Observable):
             elif self.time>=self.maxTime: #and time out
                 self.terminated = True
         logits = self.calcLogits()
-        info = None
-        self.notify() #redraw
+        info = {}
+        self.notify() #update view
         return (logits, reward, self.terminated, self.truncated, info)
     def calcLogits(self) -> list[float]:
         x = [float(self.runner.rect.center[0]), float(self.runner.rect.center[1]), self.runner.rotation]
@@ -192,10 +192,20 @@ class TagView(Observer):
 
 class TagEnv():
     def reset(self, seed:int=None) -> None:
-        return self.model.reset()
-    def __init__(self, render_mode : (None|str)=None, nSeekers = 1, speedRatio = 2/3, maxTime=200, arenaX=500, arenaY=500) -> None:
+        return self.model.reset(seed)
+    def __init__(self, render_mode : (None|str)=None, maxTime=200, nSeekers = 1, speedRatio = 2/3, arenaX=500, arenaY=500) -> None:
+        """
+        Initialize a new TagEnv.
+
+        Args.
+        render_mode: The environment will launch with a human-readable GUI if render_mode is exactly "human".
+        maxTime: Max number of steps until epoch termination.
+        nSeekers: Number of hostile agents. Higher values increase the environment difficulty.
+        speedRatio: Ratio of speed of player avatar relative to hostile agents. Higher values increase the environment difficulty.
+        arenaX: Width of the game arena. Lower values increase the environmental difficulty.
+        arenaY: Height of the game arena. Lower values increase the environmental difficulty.
+        """
         self.model = TagModel(nSeekers, speedRatio, maxTime, arenaX, arenaY)
-        self.actionSpace = [0,1,2]
         if (render_mode=="human"):
             self.view = TagView(resolution=pygame.Vector2(750,500), model=self.model)
             self.model.addObserver(self.view)
@@ -209,3 +219,5 @@ class TagEnv():
         if not self.view == None:
             self.view.close()
             self.view = None
+    def validActions(self,s):
+        return [0,1,2]

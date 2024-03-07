@@ -217,7 +217,7 @@ class DQNAgent(AbstractQAgent):
             #TODO try fixed weights. create a duplicate model, use it to estimate q2, don't update its weights until end of fit()
 
             q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
-            return (r+q2-q1)*(r+q2-q1) #tf.math.squared_difference(r+q2, q1) #calculate error between prediction and (approximated) label
+            return (r+q2-q1)*(r+q2-q1) #calculate error between prediction and (approximated) label
 
         s1, a, r, s2 = x
         self.optimizer.minimize(lambda: l(s1,a,r,s2), self.trainable_weights)
@@ -362,24 +362,26 @@ class ActorCriticAgent(Model, Agent):
                 newProbs[i] = probs[i]
             return tfp.distributions.Categorical(probs=newProbs).sample()
     def train_step(self, x):
-        @tf.function
-        def lCritic(s1,a1,r,s2):
+        with tf.GradientTape(persistent=True) as tape:
+            s1,a,r,s2 = x #unpack transition
+
+            #calculate critic gradients
             q2 = self.discountRate*tf.reduce_max(self(s2)[0][len(self.actionSpace):]) #estimated q-value for on-policy action for s2
-            q1 = self(s1)[0][len(self.actionSpace):][a1] #estimated q-value for (s,a) yielding r
-            return (r+q2-q1)*(r+q2-q1) #tf.math.squared_difference(r+q2, q1) #calculate error between prediction and (approximated) label
-        @tf.function
-        def lActor(s,a,v):
-            #the algorithm calls for us to calculate the gradient of the RHS of this, then multiply that by Q.
-            #instead, here, we're multiplying it then taking the gradient.
-            #It seems to me like this should be the same, but I'm not at all confident that that's true.  
-            return v * tfp.distributions.Categorical(probs=tf.nn.softmax(self(s)[0][:len(self.actionSpace)])).log_prob(a)
-        s1,a,r,s2 = x
+            q1 = self(s1)[0][len(self.actionSpace):][a] #estimated q-value for (s,a) yielding r
+            l = -((r+q2-q1)*(r+q2-q1)) #calculate error between prediction and (approximated) label. invert sign because we want this to be minimised
+            grads = tape.gradient(l, self.trainable_weights)
 
-        q = self(s1)[0][len(self.actionSpace):][a] #critic's appraisal of actor's action
-        print("lCritic = ", lCritic(s1,a,r,s2), "\nlActor = ", lActor(s1,a,q))
-        self.optimizer.minimize(lambda: lCritic(s1,a,r,s2) + lActor(s1,a,q), self.trainable_weights)
+            #calculate actor gradients
+            q = self(s1)[0][len(self.actionSpace):][a] #critic's appraisal of actor's action
+            actorGrads = tape.gradient(tfp.distributions.Categorical(probs=tf.nn.softmax(self(s1)[0][:len(self.actionSpace)])).log_prob(a), self.trainable_weights)
+            for i in range(len(actorGrads)): #add to actor grads
+                grads[i] += ((tf.nn.tanh(q)) * actorGrads[i])
+                #tanh, because the paper (actor-critic NIPS 1999) seems to claim that the actor feedback needs to be normalised
+                #in some way, and without it my critic Q-values and gradients keep exploding
 
-        return {"loss": 0.0} #TODO
+            self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
+        
+            return {"loss": 0.0} #TODO
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         if len(observationsThisEpoch)>1: #if we have a transition to add
             #add the transition

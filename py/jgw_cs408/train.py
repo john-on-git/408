@@ -8,12 +8,12 @@ import time
 
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    TRAINING_TIME_SECONDS = 60
+    TRAINING_TIME_SECONDS = 180
 
     environments: list[Environment]
     environments = [
-        MazeEnv(RNG_SEED_INIT, nCoins=10)
-        #TagEnv(RNG_SEED_INIT),
+        #MazeEnv(RNG_SEED_INIT, nCoins=10)
+        TagEnv(RNG_SEED_INIT),
         #TTTEnv(RNG_SEED_INIT)
     ]
     metrics = [] #list of metrics each epoch, for each agent, for each environments[i]
@@ -29,20 +29,11 @@ if __name__ == "__main__":
                 actionSpace=environments[i].ACTION_SPACE,
                 hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
                 validActions=environments[i].validActions,
-                learningRate=.0001,
+                learningRate=.001,
                 discountRate=.95,
                 epsilon=0.25,
-                epsilonDecay=.9,
+                epsilonDecay=.9
             )
-            , AdvantageActorCriticAgent(
-                 actionSpace=environments[i].ACTION_SPACE,
-                 hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-                 validActions=environments[i].validActions,
-                 learningRate=.001,
-                 discountRate=.95,
-                 epsilon=0.25,
-                 epsilonDecay=.9,
-             )
         ]
         metrics.append({"reward":[], "loss":[]})
         for j in range(len(agents)):

@@ -29,23 +29,24 @@ if __name__ == "__main__":
                 actionSpace=environments[i].ACTION_SPACE,
                 hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
                 validActions=environments[i].validActions,
-                learningRate=.001,
-                discountRate=.95,
-                epsilon=0.25,
-                epsilonDecay=.9,
-            ),
-            AdvantageActorCriticAgent(
-                actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-                validActions=environments[i].validActions,
-                learningRate=.001,
+                learningRate=.0001,
                 discountRate=.95,
                 epsilon=0.25,
                 epsilonDecay=.9,
             )
+            , AdvantageActorCriticAgent(
+                 actionSpace=environments[i].ACTION_SPACE,
+                 hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+                 validActions=environments[i].validActions,
+                 learningRate=.001,
+                 discountRate=.95,
+                 epsilon=0.25,
+                 epsilonDecay=.9,
+             )
         ]
         metrics.append({"reward":[], "loss":[]})
         for j in range(len(agents)):
+            print("Training new", type(environments[i]).__name__,"/",type(agents[j]).__name__)
             metrics[i]["reward"].append(list())
             metrics[i]["loss"].append(list())
 

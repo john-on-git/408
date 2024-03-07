@@ -101,7 +101,7 @@ class AbstractPolicyAgent(Model, Agent):
         pass
 
 class REINFORCEAgent(AbstractPolicyAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=0, baseline=0):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
         self.discountRate = discountRate
         self.baseline = baseline
@@ -144,7 +144,7 @@ class REINFORCEAgent(AbstractPolicyAgent):
             
             self.train_step(eligibilityTraces, float(sum(rewardsThisEpoch)))
 class REINFORCE_MENTAgent(AbstractPolicyAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=0, baseline=0, entropyWeight=0):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, entropyWeight=0):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
         self.discountRate = discountRate
         self.baseline = baseline
@@ -199,7 +199,7 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
 
 #Replay method from Playing Atari with Deep Reinforcement Learning, Mnih et al (Algorithm 1).
 class DQNAgent(AbstractQAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=0, baseline=0, replayMemoryCapacity=1000, replayFraction=5, entropyWeight=1):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5, entropyWeight=1):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
         self.discountRate = discountRate
         self.baseline = baseline
@@ -266,7 +266,7 @@ class DQNAgent(AbstractQAgent):
 #TODO modify. The use of replay memory makes this not SARSA, and unlikely to improve.
 #same as above but SARSA instead
 class SARSAAgent(AbstractQAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, entropyWeight=1, discountRate=0, baseline=0, epsilon=0, epsilonDecay=1, replayMemoryCapacity=1000, replayFraction=5):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, entropyWeight=1, discountRate=1, baseline=0, epsilon=0, epsilonDecay=1, replayMemoryCapacity=1000, replayFraction=5):
         super().__init__(learningRate, actionSpace, hiddenLayers, epsilon, epsilonDecay)
         self.discountRate = discountRate
         self.baseline = baseline
@@ -321,7 +321,7 @@ class SARSAAgent(AbstractQAgent):
                 self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minibatch
 
 class ActorCriticAgent(Model, Agent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=0, baseline=0, replayMemoryCapacity=1000, replayFraction=5):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5):
         super().__init__()
         self.discountRate = discountRate
         self.baseline = baseline
@@ -356,26 +356,26 @@ class ActorCriticAgent(Model, Agent):
         if random.random()<self.epsilon: #chance to act randomly
             return random.choice(validActions)
         else:
-            probs = tf.nn.softmax(self(s)[0][0:len(self.actionSpace)]) #ignore Q-vals and take probs
+            probs = tf.nn.softmax(self(s)[0][:len(self.actionSpace)]) #ignore Q-vals and take probs
             newProbs = [0.0] * len(probs)
             for i in validActions:
                 newProbs[i] = probs[i]
             return tfp.distributions.Categorical(probs=newProbs).sample()
-    @tf.function
     def train_step(self, x):
         @tf.function
         def lCritic(s1,a1,r,s2):
             #there's a function phi that transforms (s,a) into the critic input
             #len(critic logits) = len(actor.trainable_weights)
-            q2 = self.discountRate*tf.reduce_max(self(s2)) #estimated q-value for on-policy action for s2
-            q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
+            q2 = self.discountRate*tf.reduce_max(self(s2)[0][len(self.actionSpace):]) #estimated q-value for on-policy action for s2
+            q1 = self(s1)[0][len(self.actionSpace):][a1] #estimated q-value for (s,a) yielding r
             return (r+q2-q1)*(r+q2-q1) #tf.math.squared_difference(r+q2, q1) #calculate error between prediction and (approximated) label
         @tf.function
         def lActor(s,a,v):
-            return v * tfp.distributions.Categorical(probs=self(s)[0]).log_prob(a)
+            return v * tfp.distributions.Categorical(probs=tf.nn.softmax(self(s)[0][:len(self.actionSpace)])).log_prob(a)
         s1,a,r,s2 = x
 
-        q = self(s1)[0][a+len(self.actionSpace)] #critic's appraisal of actor's action
+        q = self(s1)[0][len(self.actionSpace):][a] #critic's appraisal of actor's action
+        print("lCritic = ", lCritic(s1,a,r,s2), "\nlActor = ", lActor(s1,a,q))
         self.optimizer.minimize(lambda: lCritic(s1,a,r,s2) + lActor(s1,a,q), self.trainable_weights)
 
         return {"loss": 0.0} #TODO
@@ -408,7 +408,7 @@ class ActorCriticAgent(Model, Agent):
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s))
                 self.fit(dataset) #train on the minibatch
 class AdvantageActorCriticAgent(Model, Agent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, entropyWeight=1, discountRate=0, baseline=0, replayMemoryCapacity=1000, replayFraction=5):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, entropyWeight=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5):
         super().__init__()
         self.discountRate = discountRate
         self.baseline = baseline
@@ -431,7 +431,7 @@ class AdvantageActorCriticAgent(Model, Agent):
         self.modelLayers.extend(hiddenLayers)
         self.modelLayers.append(layers.Dense(len(actionSpace)*2)) #first half is interpreted as action probs, second half as action Q-values. Softmax activation is manually applied, and only to probs.
         self.compile(
-            optimizer=tf.optimizers.Adam(learning_rate=1),
+            optimizer=tf.optimizers.Adam(learning_rate=self.learningRate),
             metrics="loss"
         )
     def call(self, s):
@@ -476,7 +476,7 @@ class AdvantageActorCriticAgent(Model, Agent):
                 k = tMax-t
                 for i in range(k):
                     n+=1
-                    advantage += (self.discountRate**i*Rs[t+i]) + (self.learningRate**k*self(Ss[t+k])[0][-1]) - (self(Ss[t])[0][-1]) #advantage formula from Async Methods for DRL
+                    advantage += (self.discountRate**i*Rs[t+i]) + (self.discountRate**k*self(Ss[t+k])[0][-1]) - (self(Ss[t])[0][-1]) #advantage formula from Async Methods for DRL
                 advantages.append(advantage)
             return advantages
         if endOfEpoch:

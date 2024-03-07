@@ -1,2 +1,2 @@
-model_checkpoint_path: "tagDQNAgent.tf"
-all_model_checkpoint_paths: "tagDQNAgent.tf"
+model_checkpoint_path: "tagREINFORCEAgent.tf"
+all_model_checkpoint_paths: "tagREINFORCEAgent.tf"

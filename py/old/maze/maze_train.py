@@ -2,7 +2,7 @@ import random
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from maze_env import MazeEnv
+from jgw_cs408.environments.maze_env import MazeEnv
 from jgw_cs408.agents import *
 import time
 

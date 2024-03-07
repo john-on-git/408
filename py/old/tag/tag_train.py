@@ -2,7 +2,7 @@ import random
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from tag_env import TagEnv
+from jgw_cs408.environments.tag_env import TagEnv
 from jgw_cs408.agents import *
 import time
 

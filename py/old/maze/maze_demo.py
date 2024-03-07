@@ -1,4 +1,4 @@
-from maze_env import MazeEnv
+from jgw_cs408.environments.maze_env import MazeEnv
 import tensorflow as tf
 from time import sleep
 from jgw_cs408.agents import *

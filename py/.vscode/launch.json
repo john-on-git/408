@@ -14,6 +14,14 @@
             "justMyCode": true
         },
         {
+            "name": "Python: train.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "jgw_cs408/train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
             "name": "Python: maze_human_interactive.py",
             "type": "debugpy",
             "request": "launch",
@@ -22,58 +30,10 @@
             "justMyCode": true
         },
         {
-            "name": "Python: maze_train.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "jgw_cs408/maze/maze_train.py",
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Python: maze_demo.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "jgw_cs408/maze/maze_demo.py",
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Python: pole_train.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "jgw_cs408/pole/pole_train.py",
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Python: ttt_train.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "jgw_cs408/ttt/ttt_train.py",
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Python: race_human_interactive.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "jgw_cs408/race/race_human_interactive.py",
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
             "name": "Python: tag_human_interactive.py",
             "type": "debugpy",
             "request": "launch",
             "program": "jgw_cs408/tag/tag_human_interactive.py",
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Python: tag_train.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "jgw_cs408/tag/tag_train.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }

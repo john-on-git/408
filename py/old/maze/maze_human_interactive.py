@@ -1,6 +1,6 @@
 from time import sleep
 import pygame
-from maze_env import MazeEnv
+from jgw_cs408.environments.maze_env import MazeEnv
 import keyboard
 
 env = MazeEnv(render_mode="human")

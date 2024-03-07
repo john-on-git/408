@@ -1,5 +1,5 @@
 from time import sleep
-from ttt_env import TTTEnv, TTTSearchAgent, Team
+from jgw_cs408.environments.ttt_env import TTTEnv, TTTSearchAgent, Team
 from jgw_cs408.agents import *
 import keyboard
 import pygame
@@ -14,13 +14,13 @@ def opponentAct():
     return (s, None, terminated, truncated, {})
 
 env = TTTEnv(render_mode="human", opponent=None, size=3)
-opponent = TTTSearchAgent(epsilon=.75) #DQNAgent(epsilon=0, learningRate=0, discountRate=0, actionSpace=env.actionSpace)
-#opponent.load_weights("jgw_cs408/checkpoints/TTTParallelDQNAgent.tf")
+opponent = REINFORCE_MENTAgent(epsilon=0, learningRate=0, discountRate=0, actionSpace=env.actionSpace, validActions=env.validActions)
+opponent.load_weights("jgw_cs408/checkpoints/TTTREINFORCE_MENTAgent.tf")
 env.model.opponent = opponent
 
 keyboard.on_press_key('esc', lambda _: exit())
 
-#_ = opponentAct() #CPU goes first
+_ = opponentAct() #CPU goes first
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -41,4 +41,4 @@ while True:
     if env.model.terminated or env.model.truncated:
         sleep(1)
         _ = env.reset()
-        #opponentAct() #CPU goes first
+        opponentAct() #CPU goes first

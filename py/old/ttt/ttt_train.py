@@ -2,21 +2,23 @@ import random
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from ttt_env import TTTEnv, TTTSearchAgent
+from jgw_cs408.environments.ttt_env import TTTEnv, TTTSearchAgent
 from jgw_cs408.agents import *
 import time
 
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    TRAINING_TIME_SECONDS = 12000
-    EPSILON_EVALUATION_WINDOW_SIZE = 10 #epsilon is lowered (difficulty is increased) if the agent scores well in at least this many games in a row
+    TRAINING_TIME_SECONDS = 300
+    EPSILON_EVALUATION_WINDOW_SIZE = 3 #epsilon is lowered (difficulty is increased) if the agent scores well in at least this many games in a row
+    EPSILON_TARGET = .5 #stop training if epsilon lowers below this value
+    EPSILON_DROP_RATE = 100900
 
-    env = TTTEnv(opponent=TTTSearchAgent(epsilon=1, epsilonDecay=1)) #epsilon is modified based on highest agent performance
+    env = TTTEnv(opponent=TTTSearchAgent(epsilon=1)) #epsilon is decreased based on highest agent performance
     agents = [
         #DQNAgent(learningRate=.001, discountRate=.95, replayMemoryCapacity=1000, epsilon=0.25, epsilonDecay=.9, actionSpace=env.actionSpace)
-        #REINFORCE_MENTAgent(learningRate=0.01, discountRate=.9, actionSpace=env.actionSpace)
-        AdvantageActorCriticAgent(learningRate=.001, actionSpace=env.actionSpace, discountRate=.75, epsilon=.99, epsilonDecay=.9999, validActions=env.validActions),
-        ActorCriticAgent(learningRate=.001, actionSpace=env.actionSpace, discountRate=.75, replayMemoryCapacity=50000, replayFraction=500, epsilon=.99, epsilonDecay=.9999, validActions=env.validActions),
+        REINFORCE_MENTAgent(learningRate=0.01, discountRate=.9, actionSpace=env.actionSpace, validActions=env.validActions)
+        #AdvantageActorCriticAgent(learningRate=.001, actionSpace=env.actionSpace, discountRate=.75, epsilon=.99, epsilonDecay=.9999, validActions=env.validActions),
+        #ActorCriticAgent(learningRate=.001, actionSpace=env.actionSpace, discountRate=.75, replayMemoryCapacity=50000, replayFraction=500, epsilon=.99, epsilonDecay=.9999, validActions=env.validActions),
 
     ]
     metrics = {"reward":[], "loss":[]} #list of rewards each epoch, for each agent
@@ -33,7 +35,8 @@ if __name__ == "__main__":
         observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
         start = time.time()
         epochs = 0
-        while time.time()-start<=TRAINING_TIME_SECONDS and env.agent.epsilon>.05:
+        window = []
+        while time.time()-start<=TRAINING_TIME_SECONDS and env.model.opponent.epsilon>EPSILON_TARGET:
             Ss = []
             As = []
             Rs = []
@@ -68,11 +71,18 @@ if __name__ == "__main__":
                     As = []
                     Rs = []
                     epochRunning = False
+
                     #consider lowering epsilon
-                    bestOfLast10 = np.max([0.0, np.min(metrics["reward"][-EPSILON_EVALUATION_WINDOW_SIZE:])])
-                    nextEpsilonCandidate= np.min([1.0, 1.0-(bestOfLast10/250)])
-                    env.opponent.epsilon = np.min([nextEpsilonCandidate, env.opponent.epsilon])
-                    print("Epoch ", epochs, " Done (r = ", metrics["reward"][i][-1],", εA ≈ ", round(agents[i].epsilon, 2),", εO ≈ ", round(env.opponent.epsilon, 2),")", sep="")
+                    if len(window)==EPSILON_EVALUATION_WINDOW_SIZE:
+                        worstOfWindow = np.min(window)
+                        if worstOfWindow>0:
+                            env.model.opponent.epsilon -= worstOfWindow/EPSILON_DROP_RATE
+                            window = []
+                        else:
+                            window.pop(0)
+                    window.append(metrics["reward"][i][-1])
+
+                    print("Epoch ", epochs, " Done (r = ", metrics["reward"][i][-1],", εA ≈ ", round(agents[i].epsilon, 2),", εO ≈ ", round(env.model.opponent.epsilon, 2),")", sep="")
                 observation = nextObservation
             epochs+=1
             rngSeed+=1
@@ -123,7 +133,4 @@ if __name__ == "__main__":
         #else:
         #    trainingRunning = False
         #    envs[i].close()
-            
-    
-    exit()
-   
+    exit()   

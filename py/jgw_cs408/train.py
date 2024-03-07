@@ -8,13 +8,13 @@ import time
 
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    TRAINING_TIME_SECONDS = 5
+    TRAINING_TIME_SECONDS = 60
 
     environments: list[Environment]
     environments = [
-        MazeEnv(RNG_SEED_INIT, nCoins=10),
-        TagEnv(RNG_SEED_INIT),
-        TTTEnv(RNG_SEED_INIT)
+        MazeEnv(RNG_SEED_INIT, nCoins=10)
+        #TagEnv(RNG_SEED_INIT),
+        #TTTEnv(RNG_SEED_INIT)
     ]
     metrics = [] #list of metrics each epoch, for each agent, for each environments[i]
 
@@ -122,8 +122,11 @@ if __name__ == "__main__":
 
     #plot return over time for envs/agents
     fig, axs = plt.subplots(len(environments))
-    for i in range(len(environments)): #for each env graph
-        plot(axs[i], agents, metrics[i]["reward"], "reward")
+    if len(environments)>1:
+        for i in range(len(environments)): #for each env graph
+            plot(axs[i], agents, metrics[i]["reward"], "reward")
+    else:
+        plot(axs, agents, metrics[0]["reward"], "reward")
     plt.show()
         
     #prompt to continue training

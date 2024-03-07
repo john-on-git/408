@@ -361,20 +361,22 @@ class ActorCriticAgent(Model, Agent):
             for i in validActions:
                 newProbs[i] = probs[i]
             return tfp.distributions.Categorical(probs=newProbs).sample()
+    @tf.function
     def train_step(self, x):
+        @tf.function
         def lCritic(s1,a1,r,s2):
             #there's a function phi that transforms (s,a) into the critic input
             #len(critic logits) = len(actor.trainable_weights)
             q2 = self.discountRate*tf.reduce_max(self(s2)) #estimated q-value for on-policy action for s2
             q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
             return (r+q2-q1)*(r+q2-q1) #tf.math.squared_difference(r+q2, q1) #calculate error between prediction and (approximated) label
+        @tf.function
         def lActor(s,a,v):
             return v * tfp.distributions.Categorical(probs=self(s)[0]).log_prob(a)
         s1,a,r,s2 = x
-        self.optimizer.minimize(lambda: lCritic(s1,a,r,s2), self.trainable_weights)
 
         q = self(s1)[0][a+len(self.actionSpace)] #critic's appraisal of actor's action
-        self.optimizer.minimize(lambda: lActor(s1,a,q), self.trainable_weights)
+        self.optimizer.minimize(lambda: lCritic(s1,a,r,s2) + lActor(s1,a,q), self.trainable_weights)
 
         return {"loss": 0.0} #TODO
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
@@ -429,7 +431,7 @@ class AdvantageActorCriticAgent(Model, Agent):
         self.modelLayers.extend(hiddenLayers)
         self.modelLayers.append(layers.Dense(len(actionSpace)*2)) #first half is interpreted as action probs, second half as action Q-values. Softmax activation is manually applied, and only to probs.
         self.compile(
-            optimizer=tf.optimizers.Adam(learning_rate=learningRate),
+            optimizer=tf.optimizers.Adam(learning_rate=1),
             metrics="loss"
         )
     def call(self, s):
@@ -451,17 +453,19 @@ class AdvantageActorCriticAgent(Model, Agent):
         for layer in self.layers:
             observation = layer(observation)
         return observation
+    @tf.function
     def train_step(self, x):
+        @tf.function
         def lCritic(s1,r,s2):
             q2 = self.discountRate*self(s2)[0][-1] #estimated v-value for s2
             q1 = self(s1)[0][-1] #estimated v-value for s1
             return (r+q2-q1)*(r+q2-q1) #tf.math.squared_difference(r+q2, q1) #calculate error between prediction and (approximated) label
+        @tf.function
         def lActor(s,a,v):
             return v * tfp.distributions.Categorical(probs=self(s)[0][:-1]).log_prob(a)
         s1,act,r,adv,s2 = x
     
-        l1 = self.optimizer.minimize(lambda: lCritic(s1,r,s2), self.trainable_weights) #minimize critic
-        l2 = self.optimizer.minimize(lambda: lActor(s1,act,adv), self.trainable_weights) #minimize actor
+        self.optimizer.minimize(lambda: lCritic(s1,r,s2) + lActor(s1,act,adv), self.trainable_weights) #minimize critic
         return {"loss": 0.0} #TODO
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         def advantages(Ss, Rs, tMax): #calculate advantage for all ts

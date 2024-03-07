@@ -10,7 +10,9 @@ from threading import Thread
 
 class Environment(ABC):
     def __init__(self) -> None:
+        super().__init__()
         self.ACTION_SPACE: list
+        self.View: View | None 
     def close(self) -> None:
         if self.view is not None:
             self.view.close()
@@ -24,7 +26,28 @@ class Environment(ABC):
         pass
     @abstractmethod
     def reset(self, seed:int) -> tuple[list[float], dict]:
-        self.random = Random(seed)
+        pass
+class View(ABC):
+    def __init__(self) -> None:
+        super().__init__()
+        self.running: bool
+        self.thread: Thread
+    def open(self):
+        self.running = True
+        self.thread = Thread(target=self.main, daemon=True)
+        self.thread.start()
+    def close(self):
+        self.running = False
+        self.thread.join()
+        pygame.quit()
+    @abstractmethod
+    def main(self):
+        pass
+    @abstractmethod
+    def update(self, world):
+        pass
+
+
 
 SCORE_PER_COIN = 1
 FOOD_PER_COIN = 10
@@ -52,7 +75,6 @@ class MazeEnv(Environment, Observable):
         startPosition: Initial coordinates of agent at each epoch, or None for random initial coordinates. Setting to random increases the environment difficulty.
         gameLength: Max length of game, or None for unlimited length.
         """
-        Environment.__init__(self)
         Observable.__init__(self)
         #init constants
         self.ACTION_SPACE = [0,1,2,3,4]
@@ -72,15 +94,15 @@ class MazeEnv(Environment, Observable):
             for x in range(len(self.SQUARES[y])):
                 if self.SQUARES[y][x] == MazeSquare.EMPTY:
                     self.EMPTY_SQUARES.append((y,x))
+        self.reset()
         if (render_mode=="human"):
             self.view = MazeView(resolution=(500,500), world=self)
             self.addObserver(self.view)
             self.view.open()
         else:
             self.view = None
-        self.reset()
     def reset(self, seed:int=None) -> None:
-        super().reset(seed)
+        self.random = Random(seed)
         self.score = 0
         self.food = INITIAL_FOOD
         self.time = 0
@@ -184,7 +206,7 @@ class MazeEnv(Environment, Observable):
         for observer in super().getObservers():
             observer.update(self)
 #view
-class MazeView(Observer):
+class MazeView(View, Observer):
     def __init__(self, world : MazeEnv, resolution) -> None:
         super().__init__()
         pygame.init()
@@ -242,14 +264,6 @@ class MazeView(Observer):
             # flip() the display to put your work on screen
             pygame.display.flip()
         exit()
-    def open(self):
-        self.running = True
-        self.thread = Thread(target=self.main, daemon=True)
-        self.thread.start()
-    def close(self):
-        self.running = False
-        self.thread.join()
-        pygame.quit()
     def update(self, world):
         if type(world) is MazeEnv:
             self.players[1].clear()
@@ -298,7 +312,7 @@ class TagEnv(Environment, Observable):
         arenaX: Width of the game arena. Lower values increase the environmental difficulty.
         arenaY: Height of the game arena. Lower values increase the environmental difficulty.
         """
-        Environment.__init__(self)
+        
         Observable.__init__(self)
         #init constants
         self.ACTION_SPACE = [0,1,2]
@@ -339,8 +353,8 @@ class TagEnv(Environment, Observable):
         x += math.cos(angle)*dist
         y += math.sin(angle)*dist
         return (x,y)
-    def reset(self, seed:int) -> tuple[list[float], int, bool, bool, None]:
-        super().reset(seed)
+    def reset(self, seed:int=None) -> tuple[list[float], int, bool, bool, None]:
+        self.random = Random(seed)
         self.RUNNER.rect.center = self.RUNNER_INITIAL_POSITION
         self.RUNNER.rotation = self.RUNNER_INITIAL_ROTATION
 
@@ -384,7 +398,7 @@ class TagEnv(Environment, Observable):
                 self.truncated = True
             elif not self.RUNNER.rect.colliderect(self.ARENA): #with obstacles
                 self.truncated = True
-            elif self.time>=self.MAX_TIME: #and time out
+            elif self.time==self.MAX_TIME: #and time out
                 self.terminated = True
         logits = self.calcLogits()
         info = {}
@@ -402,7 +416,7 @@ class TagEnv(Environment, Observable):
         for observer in super().getObservers():
             observer.update(self)
 #view
-class TagView(Observer):
+class TagView(View, Observer):
     def __init__(self, model : TagEnv, resolution) -> None:
         super().__init__()
         self.BG_COLOR = pygame.color.Color(126,126,126)
@@ -451,14 +465,6 @@ class TagView(Observer):
             # flip() the display to put your work on screen
             pygame.display.flip()
         exit()
-    def open(self):
-        self.running = True
-        self.thread = Thread(target=self.main, daemon=True)
-        self.thread.start()
-    def close(self):
-        self.running = False
-        self.thread.join()
-        pygame.quit()
     def update(self, world):
         if type(world) is TagEnv:
             for _, xs in self.drawTargets:
@@ -469,14 +475,16 @@ class TagView(Observer):
                 self.seekers.append(seeker)
             self.arenas.append(world.ARENA)
 
+
+
 #Tic-Tac-Toe
 REWARD_PARTIAL_CHAIN = 2
 REWARD_WIN = 10
 REWARD_PER_TIME_STEP = 1
 REWARD_INVALID = -100
 
-#agent that follows the optimal policy by performing a full search
-class TTTSearchAgent():
+#models
+class TTTSearchAgent(): #agent that follows the optimal policy by performing a tree search
     def  __init__(self, random:Random, epsilon=0, epsilonDecay=1, depth=-1) -> None:
         self.epsilon=epsilon
         self.epsilonDecay = epsilonDecay
@@ -632,8 +640,6 @@ class TTTSearchAgent():
                 elif score>maxScore[1]:
                     maxScore = (a, score)
             return maxScore[0]
-
-#models
 class Team(Enum):
     EMPTY = 0.0,
     NOUGHT = 1.0,
@@ -648,30 +654,30 @@ class TTTEnv (Environment, Observable):
         size: Equal to the width and height of the game board.
         opponent: Agent responsible for the enemy AI. The provided agent be guaranteed to provide a valid action for all game states.
         """
-        Environment.__init__(self)
+        
         Observable.__init__(self)
         self.OPPONENT = opponent
         self.SIZE = size
         self.OPPONENT = opponent
-        self.BOARD = []
         self.ACTION_SPACE = range(self.SIZE**2)
-        for i in range(self.SIZE):
-            self.BOARD.append([])
-            for _ in range(self.SIZE):
-                self.BOARD[i].append(Team.EMPTY)
         self.terminated = False
         self.truncated = False
+        self.board = []
+        for i in range(self.SIZE):
+            self.board.append([])
+            for _ in range(self.SIZE):
+                self.board[i].append(Team.EMPTY)
         if (render_mode=="human"):
             self.view = TTTView(resolution=(600,600), model=self)
             self.view.open()
         else:
             self.view = None
-    def reset(self, seed) -> None:
-        super().reset(seed)
+    def reset(self, seed=None) -> None:
+        self.random = Random(seed)
         self.OPPONENT.random = self.random
-        for i in range(len(self.BOARD)):
-            for j in range(len(self.BOARD[i])):
-                self.BOARD[i][j] = Team.EMPTY
+        for i in range(len(self.board)):
+            for j in range(len(self.board[i])):
+                self.board[i][j] = Team.EMPTY
         self.truncated = False
         self.terminated = False
         self.notify() #update view
@@ -685,7 +691,7 @@ class TTTEnv (Environment, Observable):
             else:
                 return 2.0 #enemy
         logits = []
-        for row in self.BOARD:
+        for row in self.board:
             for cell in row:
                 logits.append(logit(actor, cell))
         return logits
@@ -694,7 +700,7 @@ class TTTEnv (Environment, Observable):
             s, rew, terminated, truncated, info = self.halfStep(Team.NOUGHT, action) #handle player action
             if not (terminated or truncated):
                 opponentAction = self.OPPONENT.act(tf.expand_dims(tf.convert_to_tensor(self.calcLogits(Team.CROSS)),0))
-                if self.BOARD[int(opponentAction/self.SIZE)][opponentAction%self.SIZE] == Team.EMPTY: #enact move if valid
+                if self.board[int(opponentAction/self.SIZE)][opponentAction%self.SIZE] == Team.EMPTY: #enact move if valid
                     s, _, terminated, truncated, info = self.halfStep(Team.CROSS, opponentAction) #handle CPU action
                     return (s, rew, terminated, truncated, info)
                 else:
@@ -710,12 +716,12 @@ class TTTEnv (Environment, Observable):
                 chain = None
                 for j in range(n):
                     if chain==None:
-                        if self.BOARD[i][j] != Team.EMPTY: #chain starts
-                            chain = [self.BOARD[i][j], 1]
+                        if self.board[i][j] != Team.EMPTY: #chain starts
+                            chain = [self.board[i][j], 1]
                             if longestChains[chain[0]]<chain[1]:
                                 longestChains[chain[0]] = chain[1]
                     else:
-                        if self.BOARD[i][j] == chain[0]: #chain continues
+                        if self.board[i][j] == chain[0]: #chain continues
                             chain[1]+=1
                             if longestChains[chain[0]]<chain[1]:
                                 longestChains[chain[0]] = chain[1]
@@ -726,12 +732,12 @@ class TTTEnv (Environment, Observable):
                 chain = None
                 for i in range(n):
                     if chain==None:
-                        if self.BOARD[i][j] != Team.EMPTY: #chain starts
-                            chain = [self.BOARD[i][j], 1]
+                        if self.board[i][j] != Team.EMPTY: #chain starts
+                            chain = [self.board[i][j], 1]
                             if longestChains[chain[0]]<chain[1]:
                                 longestChains[chain[0]] = chain[1]
                     else:
-                        if self.BOARD[i][j] == chain[0]: #chain continues
+                        if self.board[i][j] == chain[0]: #chain continues
                             chain[1]+=1
                             if longestChains[chain[0]]<chain[1]:
                                 longestChains[chain[0]] = chain[1]
@@ -742,12 +748,12 @@ class TTTEnv (Environment, Observable):
             chain = None
             for i in range(n):
                 if chain==None:
-                    if self.BOARD[i][i] != Team.EMPTY: #chain starts
-                        chain = [self.BOARD[i][i], 1]
+                    if self.board[i][i] != Team.EMPTY: #chain starts
+                        chain = [self.board[i][i], 1]
                         if longestChains[chain[0]]<chain[1]:
                             longestChains[chain[0]] = chain[1]
                 else:
-                    if self.BOARD[i][i] == chain[0]: #chain continues
+                    if self.board[i][i] == chain[0]: #chain continues
                         chain[1]+=1
                         if longestChains[chain[0]]<chain[1]:
                             longestChains[chain[0]] = chain[1]
@@ -757,12 +763,12 @@ class TTTEnv (Environment, Observable):
             chain = None
             for i in range(n):
                     if chain==None:
-                        if self.BOARD[i][n-1-i] != Team.EMPTY: #chain starts
-                            chain = [self.BOARD[i][n-1-i], 1]
+                        if self.board[i][n-1-i] != Team.EMPTY: #chain starts
+                            chain = [self.board[i][n-1-i], 1]
                             if longestChains[chain[0]]<chain[1]:
                                 longestChains[chain[0]] = chain[1]
                     else:
-                        if self.BOARD[i][n-1-i] == chain[0]: #chain continues
+                        if self.board[i][n-1-i] == chain[0]: #chain continues
                             chain[1]+=1
                             if longestChains[chain[0]]<chain[1]:
                                 longestChains[chain[0]] = chain[1]
@@ -774,8 +780,8 @@ class TTTEnv (Environment, Observable):
         actX = action%self.SIZE
         actY = int(action/self.SIZE)
         if not self.terminated and not self.truncated:
-            if self.BOARD[actY][actX] == Team.EMPTY: #enact the move if it's valid
-                self.BOARD[actY][actX] = actor
+            if self.board[actY][actX] == Team.EMPTY: #enact the move if it's valid
+                self.board[actY][actX] = actor
                 longestChains = calcLongestChains(self.SIZE)
                 if longestChains[actor]==self.SIZE: #end the game if there's a winner
                     reward = REWARD_WIN**self.SIZE #distribute reward for the win
@@ -783,7 +789,7 @@ class TTTEnv (Environment, Observable):
                 else:
                     #end the game as a draw if all cells are full
                     self.terminated = True
-                    for row in self.BOARD:
+                    for row in self.board:
                         for cell in row:
                             if cell == Team.EMPTY:
                                 self.terminated = False
@@ -806,7 +812,7 @@ class TTTEnv (Environment, Observable):
         for observer in super().getObservers():
             observer.update(self)
 #view
-class TTTView(Observer):
+class TTTView(View, Observer):
     def __init__(self, resolution, model : TTTEnv) -> None:
         super().__init__()
         pygame.init()
@@ -839,19 +845,11 @@ class TTTView(Observer):
             # flip() the display to put your work on screen
             pygame.display.flip()
         exit()
-    def open(self):
-        self.running = True
-        self.thread = Thread(target=self.main, daemon=True)
-        self.thread.start()
-    def close(self):
-        self.running = False
-        self.thread.join()
-        pygame.quit()
-    def update(self, model):
+    def update(self, model:Environment):
         self.noughts[1].clear()
         self.crosses[1].clear()
-        for x in range(model.size):
-            for y in range(model.size):
+        for x in range(model.SIZE):
+            for y in range(model.SIZE):
                 match model.board[y][x]:
                     case Team.NOUGHT:
                         self.noughts[1].append((x*self.xSize, y*self.ySize))

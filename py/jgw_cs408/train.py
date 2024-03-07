@@ -22,7 +22,7 @@ if __name__ == "__main__":
         random.seed(RNG_SEED_INIT)
         tf.random.set_seed(RNG_SEED_INIT)
         np.random.seed(RNG_SEED_INIT)
-        
+
         agents: list[Agent]
         agents = [
             ActorCriticAgent(

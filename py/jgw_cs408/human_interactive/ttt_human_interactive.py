@@ -1,22 +1,22 @@
 from time import sleep
-from jgw_cs408.environments.ttt_env import TTTEnv, TTTSearchAgent, Team
+from jgw_cs408.environments import TTTEnv, Team
 from jgw_cs408.agents import *
 import keyboard
 import pygame
 import tensorflow as tf
 
 def opponentAct():
-    action = env.model.opponent.act(tf.expand_dims(tf.convert_to_tensor(env.model.calcLogits(Team.CROSS)),0))
-    if env.model.board[int(action/env.model.size)][action%env.model.size] == Team.EMPTY: #enact move if valid
-        s, _, terminated, truncated, _ = env.model.halfStep(Team.CROSS, action) #handle CPU action
+    action = env.OPPONENT.act(tf.expand_dims(tf.convert_to_tensor(env.calcLogits(Team.CROSS)),0))
+    if env.board[int(action/env.SIZE)][action%env.SIZE] == Team.EMPTY: #enact move if valid
+        s, _, terminated, truncated, _ = env.halfStep(Team.CROSS, action) #handle CPU action
     else:
         raise Exception("Tic-Tac-Toe opponent made invalid move.")
     return (s, None, terminated, truncated, {})
 
-env = TTTEnv(render_mode="human", opponent=None, size=3)
-opponent = REINFORCE_MENTAgent(epsilon=0, learningRate=0, discountRate=0, actionSpace=env.actionSpace, validActions=env.validActions)
+env = TTTEnv(render_mode="human", opponent=None)
+opponent = REINFORCE_MENTAgent(epsilon=0, learningRate=0, hiddenLayers=[layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)], discountRate=0, actionSpace=env.ACTION_SPACE, validActions=env.validActions)
 opponent.load_weights("jgw_cs408/checkpoints/TTTREINFORCE_MENTAgent.tf")
-env.model.opponent = opponent
+env.OPPONENT = opponent
 
 keyboard.on_press_key('esc', lambda _: exit())
 
@@ -32,13 +32,13 @@ while True:
                 x=int(x/env.view.xSize)
                 y=int(y/env.view.ySize)
                 #grid coord to action
-                action = x + y*env.model.size
-                if env.model.board[y][x] == Team.EMPTY:
+                action = x + y*env.SIZE
+                if env.board[y][x] == Team.EMPTY:
                     env.step(action) #take action
                 else:
                     print("Invalid move.")
     sleep(.1)
-    if env.model.terminated or env.model.truncated:
+    if env.terminated or env.truncated:
         sleep(1)
         _ = env.reset()
         opponentAct() #CPU goes first

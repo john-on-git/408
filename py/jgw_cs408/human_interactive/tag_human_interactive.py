@@ -1,5 +1,5 @@
 from time import sleep
-from jgw_cs408.environments.tag_env import TagEnv
+from jgw_cs408.environments import TagEnv
 import keyboard
 import pygame
 
@@ -15,8 +15,7 @@ def setAction(input):
             nextAction = 1
     timeout = 10
 
-env = TagEnv(render_mode="human")
-env.model.maxTime=9999999
+env = TagEnv(render_mode="human", maxTime=-1)
 nextAction = 1
 timeout = 10
 TICK_RATE_HZ = 100
@@ -39,12 +38,12 @@ while True:
     sleep(tickDelay)
 
     #win and loss logic
-    if env.model.truncated:
+    if env.truncated:
         if not announcedEnding:
             announcedEnding = True
             print("You crashed!")
         endCountDown-=1
-    elif env.model.terminated:
+    elif env.terminated:
         if not announcedEnding:
             announcedEnding = True
             print("You won!")
@@ -55,6 +54,3 @@ while True:
         env.reset()
         announcedEnding = False
         endCountDown = countDownLength
-    
-    #if endCountDown==0:
-    #    exit()

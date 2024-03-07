@@ -364,13 +364,14 @@ class ActorCriticAgent(Model, Agent):
     def train_step(self, x):
         @tf.function
         def lCritic(s1,a1,r,s2):
-            #there's a function phi that transforms (s,a) into the critic input
-            #len(critic logits) = len(actor.trainable_weights)
             q2 = self.discountRate*tf.reduce_max(self(s2)[0][len(self.actionSpace):]) #estimated q-value for on-policy action for s2
             q1 = self(s1)[0][len(self.actionSpace):][a1] #estimated q-value for (s,a) yielding r
             return (r+q2-q1)*(r+q2-q1) #tf.math.squared_difference(r+q2, q1) #calculate error between prediction and (approximated) label
         @tf.function
         def lActor(s,a,v):
+            #the algorithm calls for us to calculate the gradient of the RHS of this, then multiply that by Q.
+            #instead, here, we're multiplying it then taking the gradient.
+            #It seems to me like this should be the same, but I'm not at all confident that that's true.  
             return v * tfp.distributions.Categorical(probs=tf.nn.softmax(self(s)[0][:len(self.actionSpace)])).log_prob(a)
         s1,a,r,s2 = x
 

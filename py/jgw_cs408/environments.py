@@ -300,7 +300,7 @@ class Mover(Entity):
         y = math.sin(self.rotation)*self.speed
         self.rect = self.rect.move(x,y)
 class TagEnv(Environment, Observable):
-    def __init__(self, render_mode:(None|str)=None, maxTime=1000, nSeekers = 1, speedRatio = 2/3, arenaX=500, arenaY=500) -> None:
+    def __init__(self, render_mode:(None|str)=None, maxTime=1000, nSeekers = 1,  speedRatio = 2/3, seekerSpread = 180, seekerMinmaxDistance=(100,200), arenaDimensions=(500,500)) -> None:
         """
         Initialize a new TagEnv.
 
@@ -309,8 +309,9 @@ class TagEnv(Environment, Observable):
         maxTime: Max number of steps until epoch termination.
         nSeekers: Number of hostile agents. Higher values increase the environment difficulty.
         speedRatio: Ratio of speed of player avatar relative to hostile agents. Higher values increase the environment difficulty.
-        arenaX: Width of the game arena. Lower values increase the environmental difficulty.
-        arenaY: Height of the game arena. Lower values increase the environmental difficulty.
+        seekerSpread: Max deflection away from 180 degreees behind relative at which the the seekers can spawn. Higher values increase the environment difficulty
+        seekerMinMaxDistance: Min and max distances from the runner at which the seekers can spawn.
+        arenaDimensions: Dimensions of the game arena. Lower values increase the environmental difficulty.
         """
         
         Observable.__init__(self)
@@ -321,16 +322,17 @@ class TagEnv(Environment, Observable):
         RUNNER_SPEED = 5
         RUNNER_ROTATION_RATE = math.pi/30
         #load hitbox masks
-        RUNNER_HITBOX_FACTORY          = pygame.transform.scale_by(pygame.image.load("jgw_cs408/img/runner.png"), self.SCALE).get_rect
-        self.SEEKER_HITBOX_FACTORY    = pygame.transform.scale_by(pygame.image.load("jgw_cs408/img/seeker.png"), self.SCALE).get_rect
+        RUNNER_HITBOX_FACTORY       = pygame.transform.scale_by(pygame.image.load("jgw_cs408/img/runner.png"), self.SCALE).get_rect
+        self.SEEKER_HITBOX_FACTORY  = pygame.transform.scale_by(pygame.image.load("jgw_cs408/img/seeker.png"), self.SCALE).get_rect
 
-
+        arenaX, arenaY = arenaDimensions
+        self.seekerMinDistance, self.seekerMaxDistance = seekerMinmaxDistance
         #parameters to reset to when RaceModel.reset() is called
         self.RUNNER_INITIAL_POSITION = (arenaX/2 * self.SCALE, arenaY/2 * self.SCALE)
-        self.RUNNER_INITIAL_ROTATION = (lambda: math.radians(self.random.randrange(start=0,stop=360)))
+        self.RUNNER_INITIAL_ROTATION = (lambda: self.random.random()*2*math.pi)
         self.N_SEEKERS = nSeekers
         self.SEEKER_SPEED = RUNNER_SPEED * speedRatio
-        
+        self.SEEKER_SPREAD = math.radians(seekerSpread)
 
         #init entities
         self.ARENA = Entity(pygame.Rect(0,0,arenaX*self.SCALE,arenaY*self.SCALE), 0) #game ends if agent is not in contact with this rect
@@ -348,9 +350,9 @@ class TagEnv(Environment, Observable):
         else:
             self.view = None
     def genSeekerPosition(self,dist=None):
-        dist = self.random.randint(100*self.SCALE,200*self.SCALE) if dist==None else dist
+        dist = self.random.randint(self.seekerMinDistance*self.SCALE,self.seekerMaxDistance*self.SCALE) if dist==None else dist
         x,y = self.RUNNER.rect.center
-        angle = self.random.random() * 360
+        angle = self.RUNNER.rotation + math.pi + (self.random.random() * self.SEEKER_SPREAD) - (self.SEEKER_SPREAD/2) #180 degree cone behind runner 
         x += math.cos(angle)*dist
         y += math.sin(angle)*dist
         return (x,y)

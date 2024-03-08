@@ -1,2 +1,2 @@
-model_checkpoint_path: "tagAdvantageActorCriticAgent.tf"
-all_model_checkpoint_paths: "tagAdvantageActorCriticAgent.tf"
+model_checkpoint_path: "tagActorCriticAgent.tf"
+all_model_checkpoint_paths: "tagActorCriticAgent.tf"

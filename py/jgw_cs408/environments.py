@@ -300,7 +300,7 @@ class Mover(Entity):
         y = math.sin(self.rotation)*self.speed
         self.rect = self.rect.move(x,y)
 class TagEnv(Environment, Observable):
-    def __init__(self, render_mode:(None|str)=None, maxTime=200, nSeekers = 1, speedRatio = 2/3, arenaX=500, arenaY=500) -> None:
+    def __init__(self, render_mode:(None|str)=None, maxTime=1000, nSeekers = 1, speedRatio = 2/3, arenaX=500, arenaY=500) -> None:
         """
         Initialize a new TagEnv.
 
@@ -317,25 +317,26 @@ class TagEnv(Environment, Observable):
         #init constants
         self.ACTION_SPACE = [0,1,2]
         self.SCALE = 10
+        self.MAX_TIME = maxTime
         RUNNER_SPEED = 5
         RUNNER_ROTATION_RATE = math.pi/30
         #load hitbox masks
-        RUNER_HITBOX_FACTORY          = pygame.transform.scale_by(pygame.image.load("jgw_cs408/img/runner.png"), self.SCALE).get_rect
+        RUNNER_HITBOX_FACTORY          = pygame.transform.scale_by(pygame.image.load("jgw_cs408/img/runner.png"), self.SCALE).get_rect
         self.SEEKER_HITBOX_FACTORY    = pygame.transform.scale_by(pygame.image.load("jgw_cs408/img/seeker.png"), self.SCALE).get_rect
+
 
         #parameters to reset to when RaceModel.reset() is called
         self.RUNNER_INITIAL_POSITION = (arenaX/2 * self.SCALE, arenaY/2 * self.SCALE)
-        self.RUNNER_INITIAL_ROTATION = math.radians(90)
+        self.RUNNER_INITIAL_ROTATION = (lambda: math.radians(self.random.randrange(start=0,stop=360)))
         self.N_SEEKERS = nSeekers
         self.SEEKER_SPEED = RUNNER_SPEED * speedRatio
+        
 
         #init entities
         self.ARENA = Entity(pygame.Rect(0,0,arenaX*self.SCALE,arenaY*self.SCALE), 0) #game ends if agent is not in contact with this rect
-        self.RUNNER = Mover(rect=RUNER_HITBOX_FACTORY(), rotation=self.RUNNER_INITIAL_ROTATION, speed=RUNNER_SPEED * self.SCALE, rotationRate=RUNNER_ROTATION_RATE)
-        self.RUNNER.rect.center = self.RUNNER_INITIAL_POSITION
+        self.RUNNER = Mover(rect=RUNNER_HITBOX_FACTORY(), rotation=0, speed=RUNNER_SPEED * self.SCALE, rotationRate=RUNNER_ROTATION_RATE)
         self.RUNNERS = [self.RUNNER]
         self.SEEKERS = []
-        self.MAX_TIME = maxTime
 
         self.reset(None)
         
@@ -356,7 +357,7 @@ class TagEnv(Environment, Observable):
     def reset(self, seed:int=None) -> tuple[list[float], int, bool, bool, None]:
         self.random = Random(seed)
         self.RUNNER.rect.center = self.RUNNER_INITIAL_POSITION
-        self.RUNNER.rotation = self.RUNNER_INITIAL_ROTATION
+        self.RUNNER.rotation = self.RUNNER_INITIAL_ROTATION()
 
         #reset seekers
         self.SEEKERS.clear()

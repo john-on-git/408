@@ -17,13 +17,13 @@ class Agent(ABC):
 
 #this agent chooses actions at random w/ equal probability
 class RandomAgent(Agent):
-    def __init__(self, actionSpace, distribution:(tfp.distributions.Distribution|None)=None):
+    def __init__(self, actionSpace):
         self.epsilon = 1
         self.actionSpace = actionSpace
-        self.distribution = distribution if distribution is not None else tfp.distributions.FiniteDiscrete(actionSpace) #equal probs if no distribution is provided
-        pass
     def act(self, _):
-        return self.distribution.sample()
+        return random.choice(self.actionSpace)
+    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
+        pass
 
 class AbstractQAgent(Model, Agent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1):
@@ -57,9 +57,6 @@ class AbstractQAgent(Model, Agent):
             for i in validActions:
                 newVals[i] = vals[i]
             return int(tf.argmax(newVals)) #follow greedy policy
-    @abstractmethod
-    def train_step(self, x):
-        pass
     @abstractmethod
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         pass
@@ -95,9 +92,6 @@ class AbstractPolicyAgent(Model, Agent):
             for i in validActions:
                 newProbs[i] = probs[i]
             return tfp.distributions.Categorical(probs=newProbs).sample() #follow greedy policy
-    @abstractmethod
-    def train_step(self, x):
-        pass
     @abstractmethod
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         pass

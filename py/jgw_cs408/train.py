@@ -14,7 +14,7 @@ if __name__ == "__main__":
     environments: list[Environment]
     environments = [
         #MazeEnv(nCoins=10)
-        TagEnv(render_mode="human"),
+        TagEnv(),
         #TTTEnv()
     ]
     metrics = [] #list of metrics each epoch, for each agent, for each environments[i]

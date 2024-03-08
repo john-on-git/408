@@ -15,13 +15,15 @@ class Agent(ABC):
     def act(self,s):
         pass
 
+#this agent chooses actions at random w/ equal probability
 class RandomAgent(Agent):
-    def __init__(self, actionSpace):
+    def __init__(self, actionSpace, distribution:(tfp.distributions.Distribution|None)=None):
         self.epsilon = 1
         self.actionSpace = actionSpace
+        self.distribution = distribution if distribution is not None else tfp.distributions.FiniteDiscrete(actionSpace) #equal probs if no distribution is provided
         pass
     def act(self, _):
-        return random.choice(self.actionSpace)
+        return self.distribution.sample()
 
 class AbstractQAgent(Model, Agent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1):
@@ -100,6 +102,7 @@ class AbstractPolicyAgent(Model, Agent):
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         pass
 
+#policy gradient methods
 class REINFORCEAgent(AbstractPolicyAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
@@ -121,7 +124,7 @@ class REINFORCEAgent(AbstractPolicyAgent):
         self.optimizer.apply_gradients(zip(
             grads,
             self.trainable_weights
-        )) #update weights
+        )) #Update weights. This function negates the gradient! But we've already inverted the characteristic eligibility (see below).
         return {"loss": (self.baseline-r)}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         def characteristic_eligibilities(s, a):
@@ -162,10 +165,11 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
         #multiply by learning rate, reward
         grads = map(lambda x: (r-self.baseline) * x, grads)
         
+        #Update weights. This function negates the gradient! But we've already inverted the characteristic eligibility (see below).
         self.optimizer.apply_gradients(zip(
             grads,
             self.trainable_weights
-        )) #update weights
+        ))
         return {"loss": (self.baseline-r)}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         def lng(a, p): #probability mass function, it DOES make sense to calculate this all at once, says so in the paper
@@ -196,7 +200,10 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
                 eligibilityTraces.append(characteristic_eligibilities(observationsThisEpoch[i], actionsThisEpoch[i]))
             
             self.train_step(eligibilityTraces, sum(rewardsThisEpoch) + self.entropyWeight*entropy(observationsThisEpoch))
-
+#from Proximal Policy Optimisation (???) TODO
+class PPOAgent(AbstractPolicyAgent):
+    pass
+#value-based
 #Replay method from Playing Atari with Deep Reinforcement Learning, Mnih et al (Algorithm 1).
 class DQNAgent(AbstractQAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5, entropyWeight=1):
@@ -263,8 +270,7 @@ class DQNAgent(AbstractQAgent):
                     miniBatchS2s.append(self.replayMemoryS2s[i])
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s))
                 self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minibatch
-#TODO modify. The use of replay memory makes this not SARSA, and unlikely to improve.
-#same as above but SARSA instead
+#TODO modify. The use of replay memory makes this not SARSA, and unlikely to improve. Remove replay memory.
 class SARSAAgent(AbstractQAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, entropyWeight=1, discountRate=1, baseline=0, epsilon=0, epsilonDecay=1, replayMemoryCapacity=1000, replayFraction=5):
         super().__init__(learningRate, actionSpace, hiddenLayers, epsilon, epsilonDecay)
@@ -368,7 +374,7 @@ class ActorCriticAgent(Model, Agent):
             #calculate critic gradients
             q2 = self.discountRate*tf.reduce_max(self(s2)[0][len(self.actionSpace):]) #estimated q-value for on-policy action for s2
             q1 = self(s1)[0][len(self.actionSpace):][a] #estimated q-value for (s,a) yielding r
-            l = -((r+q2-q1)*(r+q2-q1)) #calculate error between prediction and (approximated) label. invert sign because we want this to be minimised
+            l = ((r+q2-q1)*(r+q2-q1)) #calculate error between prediction and (approximated) label.
             grads = tape.gradient(l, self.trainable_weights)
 
             #calculate actor gradients
@@ -379,7 +385,7 @@ class ActorCriticAgent(Model, Agent):
                 #tanh, because the paper (actor-critic NIPS 1999) seems to claim that the actor feedback needs to be normalised
                 #in some way, and without it my critic Q-values and gradients keep exploding
 
-            self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
+            self.optimizer.apply_gradients(zip(grads, self.trainable_weights)) #this function negates the gradient!
         
             return {"loss": 0.0} #TODO
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
@@ -465,7 +471,7 @@ class AdvantageActorCriticAgent(Model, Agent):
             return (r+q2-q1)*(r+q2-q1) #tf.math.squared_difference(r+q2, q1) #calculate error between prediction and (approximated) label
         @tf.function
         def lActor(s,a,v):
-            return v * tfp.distributions.Categorical(probs=self(s)[0][:-1]).log_prob(a)
+            return tf.nn.tanh(v) * tfp.distributions.Categorical(probs=self(s)[0][:-1]).log_prob(a)
         s1,act,r,adv,s2 = x
     
         self.optimizer.minimize(lambda: lCritic(s1,r,s2) + lActor(s1,act,adv), self.trainable_weights) #minimize critic

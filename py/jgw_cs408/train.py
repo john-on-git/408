@@ -25,15 +25,7 @@ if __name__ == "__main__":
 
         agents: list[Agent]
         agents = [
-            ActorCriticAgent(
-                actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-                validActions=environments[i].validActions,
-                learningRate=.001,
-                discountRate=.95,
-                epsilon=0.25,
-                epsilonDecay=.9
-            )
+            RandomAgent(environments[i].ACTION_SPACE)
         ]
         metrics.append({"reward":[], "loss":[]})
         for j in range(len(agents)):

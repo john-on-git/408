@@ -122,11 +122,8 @@ class REINFORCEAgent(AbstractPolicyAgent):
         return {"loss": (self.baseline-r)}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         def characteristic_eligibilities(s, a):
-            def lng(a, p): #probability mass function, it DOES make sense to calculate this all at once, says so in the paper
-                #The model only converges if we invert the gradient but I have no idea why. 💀
-                #I think it's because apply_gradients is intended to apply gradient w/r to a loss function so it subtracts it by default, but StackEx posters claim that this isn't the case.
-                #(could also be inverted elsewhere but I think doing it here is clearest)
-                return -tfp.distributions.Categorical(probs=p).log_prob(a)
+            def lng(a, p):
+                return -tfp.distributions.Categorical(probs=p).log_prob(a) #apply_gradients inverts the gradient, so it must be inverted here as well
             with tf.GradientTape() as tape:
                 return tape.gradient(lng(a,self(s)), self.trainable_weights)
         #epoch ends, reset env, observation, & reward
@@ -361,6 +358,7 @@ class ActorCriticAgent(Model, Agent):
             for i in validActions:
                 newProbs[i] = probs[i]
             return tfp.distributions.Categorical(probs=newProbs).sample()
+    @tf.function
     def train_step(self, x):
         with tf.GradientTape(persistent=True) as tape:
             s1,a,r,s2 = x #unpack transition
@@ -368,20 +366,21 @@ class ActorCriticAgent(Model, Agent):
             #calculate critic gradients
             q2 = self.discountRate*tf.reduce_max(self(s2)[0][len(self.actionSpace):]) #estimated q-value for on-policy action for s2
             q1 = self(s1)[0][len(self.actionSpace):][a] #estimated q-value for (s,a) yielding r
-            l = ((r+q2-q1)*(r+q2-q1)) #calculate error between prediction and (approximated) label.
-            grads = tape.gradient(l, self.trainable_weights)
+            l = (r+q2-q1)**2 #squared error between prediction and (approximated) label.
 
             #calculate actor gradients
             q = self(s1)[0][len(self.actionSpace):][a] #critic's appraisal of actor's action
-            actorGrads = tape.gradient(tfp.distributions.Categorical(probs=tf.nn.softmax(self(s1)[0][:len(self.actionSpace)])).log_prob(a), self.trainable_weights)
-            for i in range(len(actorGrads)): #add to actor grads
-                grads[i] += ((tf.nn.tanh(q)) * actorGrads[i])
-                #tanh, because the paper (actor-critic NIPS 1999) seems to claim that the actor feedback needs to be normalised
-                #in some way, and without it my critic Q-values and gradients keep exploding
+            lng = -tfp.distributions.Categorical(probs=tf.nn.softmax(self(s1)[0][:len(self.actionSpace)])).log_prob(a)
+        grads = tape.gradient(l, self.trainable_weights)
+        actorGrads = tape.gradient(lng, self.trainable_weights) #apply gradients inverts the gradient, so it must be inverted here as well
+        for i in range(len(actorGrads)): #combine actor and critic grads
+            grads[i] += ((tf.nn.tanh(q)) * actorGrads[i])
+            #tanh, because the paper (actor-critic NIPS 1999) seems to claim that the actor feedback needs to be normalised
+            #in some way, and without it my critic Q-values and gradients keep exploding
 
-            self.optimizer.apply_gradients(zip(grads, self.trainable_weights)) #this function negates the gradient!
-        
-            return {"loss": 0.0} #TODO
+        self.optimizer.apply_gradients(zip(grads, self.trainable_weights)) #this function negates the gradient!
+    
+        return {"loss": 0.0} #TODO
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         if len(observationsThisEpoch)>1: #if we have a transition to add
             #add the transition
@@ -410,6 +409,7 @@ class ActorCriticAgent(Model, Agent):
                     miniBatchS2s.append(self.replayMemoryS2s[i])
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s))
                 self.fit(dataset) #train on the minibatch
+#this is totally messed up, need to reread the sources
 class AdvantageActorCriticAgent(Model, Agent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, entropyWeight=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5):
         super().__init__()
@@ -432,7 +432,7 @@ class AdvantageActorCriticAgent(Model, Agent):
         #init layers
         self.modelLayers = []
         self.modelLayers.extend(hiddenLayers)
-        self.modelLayers.append(layers.Dense(len(actionSpace)*2)) #first half is interpreted as action probs, second half as action Q-values. Softmax activation is manually applied, and only to probs.
+        self.modelLayers.append(layers.Dense(len(actionSpace)+1)) #last output is the state V-value, all others are the action probs 
         self.compile(
             optimizer=tf.optimizers.Adam(learning_rate=self.learningRate),
             metrics="loss"
@@ -447,42 +447,42 @@ class AdvantageActorCriticAgent(Model, Agent):
         if random.random()<self.epsilon: #chance to act randomly
             return random.choice(validActions)
         else:
-            probs = self(s)[0][0:-1] #ignore the last output (the critic output)
+            probs = tf.nn.softmax(self(s)[0][:len(self.actionSpace)]) #ignore Q-vals and take probs
             newProbs = [0.0] * len(probs)
             for i in validActions:
-                newProbs[i] = probs[i] 
-            return int(tf.argmax(probs)) #follow greedy policy
-    def call(self, observation):
-        for layer in self.layers:
-            observation = layer(observation)
-        return observation
+                newProbs[i] = probs[i]
+            return tfp.distributions.Categorical(probs=newProbs).sample()
     @tf.function
     def train_step(self, x):
-        @tf.function
-        def lCritic(s1,r,s2):
-            q2 = self.discountRate*self(s2)[0][-1] #estimated v-value for s2
-            q1 = self(s1)[0][-1] #estimated v-value for s1
-            return (r+q2-q1)*(r+q2-q1) #tf.math.squared_difference(r+q2, q1) #calculate error between prediction and (approximated) label
-        @tf.function
-        def lActor(s,a,v):
-            return tf.nn.tanh(v) * tfp.distributions.Categorical(probs=self(s)[0][:-1]).log_prob(a)
-        s1,act,r,adv,s2 = x
+        with tf.GradientTape(persistent=True) as tape:
+            s1,a,r,adv,s2 = x #unpack transition
+
+            #calculate critic gradients
+            criticL = (r+self(s2)[0][-1]-self(s1)[0][-1])**2 #squared error between prediction and (approximated) label.
+            lng = -tfp.distributions.Categorical(probs=tf.nn.softmax(self(s1)[0][:len(self.actionSpace)])).log_prob(a) #calculate actor gradients
+            
+        grads = tape.gradient(criticL, self.trainable_weights)
+        actorGrads = tape.gradient(lng, self.trainable_weights) #apply gradients inverts the gradient, so it must be inverted here as well
+        for i in range(len(actorGrads)): #combine actor and critic grads
+            grads[i] += ((tf.nn.tanh(adv)) * actorGrads[i])
+            #tanh, because the paper (actor-critic NIPS 1999) seems to claim that the actor feedback needs to be normalised
+            #in some way, and without it my critic Q-values and gradients keep exploding
+
+        self.optimizer.apply_gradients(zip(grads, self.trainable_weights)) #this function negates the gradient!
     
-        self.optimizer.minimize(lambda: lCritic(s1,r,s2) + lActor(s1,act,adv), self.trainable_weights) #minimize critic
         return {"loss": 0.0} #TODO
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
-        def advantages(Ss, Rs, tMax): #calculate advantage for all ts
+        def advantages(Ss, Rs): #calculate advantage for all ts
+            tMax = len(Ss)-1
             advantages = []
             advantage = 0
-            n = 0
             for t in range(tMax):
                 k = tMax-t
                 for i in range(k):
-                    n+=1
-                    advantage += (self.discountRate**i*Rs[t+i]) + (self.discountRate**k*self(Ss[t+k])[0][-1]) - (self(Ss[t])[0][-1]) #advantage formula from Async Methods for DRL
+                    advantage += (self.discountRate**i*Rs[t+i]) + (self.discountRate**k*self(Ss[tMax])[0][-1]) - (self(Ss[t])[0][-1]) #advantage formula from Async Methods for DRL
                 advantages.append(advantage)
             return advantages
         if endOfEpoch:
             #self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-1])) #load-bearing train_step
-            dataset = tf.data.Dataset.from_tensor_slices((observationsThisEpoch[:-1], actionsThisEpoch[:-1], rewardsThisEpoch[:-1], advantages(observationsThisEpoch, rewardsThisEpoch, len(observationsThisEpoch)-1), observationsThisEpoch[1:]))
+            dataset = tf.data.Dataset.from_tensor_slices((observationsThisEpoch[:-1], actionsThisEpoch[:-1], rewardsThisEpoch[:-1], advantages(observationsThisEpoch, rewardsThisEpoch), observationsThisEpoch[1:]))
             self.fit(dataset) #train on the minibatch

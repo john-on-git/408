@@ -1,6 +1,5 @@
 import random
 import numpy as np
-import pygame
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from jgw_cs408.environments import Environment, MazeEnv, TagEnv, TTTEnv
@@ -26,7 +25,7 @@ if __name__ == "__main__":
 
         agents: list[Agent]
         agents = [
-            REINFORCEAgent(
+            AdvantageActorCriticAgent(
                 actionSpace=environments[i].ACTION_SPACE,
                 hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
                 validActions=environments[i].validActions,
@@ -57,9 +56,6 @@ if __name__ == "__main__":
             start = time.time()
             epochs = 0
             while time.time()-start<=TRAINING_TIME_SECONDS:
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        exit()
                 Ss = []
                 As = []
                 Rs = []

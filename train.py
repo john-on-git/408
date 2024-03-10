@@ -8,7 +8,7 @@ import time
 
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    TRAINING_TIME_SECONDS = 180
+    TRAINING_TIME_SECONDS = 30
 
     environments: list[Environment]
     environments = [
@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
         agents: list[Agent]
         agents = [
-            AdvantageActorCriticAgent(
+            ActorCriticAgent(
                 actionSpace=environments[i].ACTION_SPACE,
                 hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
                 validActions=environments[i].validActions,
@@ -34,7 +34,7 @@ if __name__ == "__main__":
                 epsilon=0.25,
                 epsilonDecay=.9
             ),
-            ActorCriticAgent(
+            AdvantageActorCriticAgent(
                 actionSpace=environments[i].ACTION_SPACE,
                 hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
                 validActions=environments[i].validActions,

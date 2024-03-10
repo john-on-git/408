@@ -26,7 +26,7 @@ class RandomAgent(Agent):
         pass
 
 class AbstractQAgent(Model, Agent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay):
         super().__init__()
         self.epsilon = epsilon
         self.epsilonDecay = epsilonDecay
@@ -61,7 +61,7 @@ class AbstractQAgent(Model, Agent):
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         pass
 class AbstractPolicyAgent(Model, Agent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay):
         super().__init__()
         self.epsilon = epsilon
         self.epsilonDecay = epsilonDecay
@@ -95,7 +95,41 @@ class AbstractPolicyAgent(Model, Agent):
     @abstractmethod
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         pass
+class AbstractActorCriticAgent(Model, Agent):
+    def __init__(self, learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, baseline, replayMemoryCapacity, replayFraction):
+        super().__init__()
+        self.discountRate = discountRate
+        self.baseline = baseline
+        self.replayMemoryS1s = []
+        self.replayMemoryA1s = []
+        self.replayMemoryRs  = []
+        self.replayMemoryS2s = []
+        self.replayMemoryA2s = []
+        self.replayMemoryCapacity = replayMemoryCapacity
+        self.replayFraction = replayFraction
+        self.learningRate = learningRate
+        self.actionSpace = actionSpace
+        self.epsilon = epsilon
+        self.epsilonDecay = epsilonDecay
+        self.validActions = validActions if validActions is not None else (lambda _: actionSpace) #Callable that returns the valid actions for a state. Defaults to entire action space.
 
+        #layers are initialised in subclasses
+    def call(self, s):
+        for layer in self.layers:
+            s = layer(s)
+        return s
+    def act(self, s):
+        self.epsilon *= self.epsilonDecay #epsilon decay
+        validActions = self.validActions(s) #get valid actions
+        if random.random()<self.epsilon: #chance to act randomly
+            return random.choice(validActions)
+        else:
+            probs = tf.nn.softmax(self(s)[0][:len(self.actionSpace)]) #ignore Q-vals and take probs
+            newProbs = [0.0] * len(probs)
+            for i in validActions:
+                newProbs[i] = probs[i]
+            return tfp.distributions.Categorical(probs=newProbs).sample()
+    
 #policy gradient methods
 class REINFORCEAgent(AbstractPolicyAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0):
@@ -317,24 +351,9 @@ class SARSAAgent(AbstractQAgent):
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s, miniBatchA2s))
                 self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minibatch
 
-class ActorCriticAgent(Model, Agent):
+class ActorCriticAgent(AbstractActorCriticAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5):
-        super().__init__()
-        self.discountRate = discountRate
-        self.baseline = baseline
-        self.replayMemoryS1s = []
-        self.replayMemoryA1s = []
-        self.replayMemoryRs  = []
-        self.replayMemoryS2s = []
-        self.replayMemoryA2s = []
-        self.replayMemoryCapacity = replayMemoryCapacity
-        self.replayFraction = replayFraction
-        self.learningRate = learningRate
-        self.actionSpace = actionSpace
-        self.epsilon = epsilon
-        self.epsilonDecay = epsilonDecay
-        self.validActions = validActions if validActions is not None else (lambda _: actionSpace) #Callable that returns the valid actions for a state. Defaults to entire action space.
-
+        super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, baseline, replayMemoryCapacity, replayFraction)
         #init layers
         self.modelLayers = []
         self.modelLayers.extend(hiddenLayers)
@@ -410,25 +429,9 @@ class ActorCriticAgent(Model, Agent):
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s))
                 self.fit(dataset) #train on the minibatch
 #this is totally messed up, need to reread the sources
-class AdvantageActorCriticAgent(Model, Agent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, entropyWeight=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5):
-        super().__init__()
-        self.discountRate = discountRate
-        self.baseline = baseline
-        self.replayMemoryS1s = []
-        self.replayMemoryA1s = []
-        self.replayMemoryRs  = []
-        self.replayMemoryS2s = []
-        self.replayMemoryA2s = []
-        self.replayMemoryCapacity = replayMemoryCapacity
-        self.replayFraction = replayFraction
-        self.entropyWeight=entropyWeight
-        self.learningRate = learningRate
-        self.actionSpace = actionSpace
-        self.epsilon = epsilon
-        self.epsilonDecay = epsilonDecay
-        self.validActions = validActions if validActions is not None else (lambda _: actionSpace) #Callable that returns the valid actions for a state. Defaults to entire action space.
-
+class AdvantageActorCriticAgent(AbstractActorCriticAgent):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5):
+        super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, baseline, replayMemoryCapacity, replayFraction)
         #init layers
         self.modelLayers = []
         self.modelLayers.extend(hiddenLayers)

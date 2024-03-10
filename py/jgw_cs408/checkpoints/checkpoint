@@ -1,2 +1,0 @@
-model_checkpoint_path: "MazeDQNAgent.tf"
-all_model_checkpoint_paths: "MazeDQNAgent.tf"

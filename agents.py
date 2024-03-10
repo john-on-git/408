@@ -297,17 +297,10 @@ class DQNAgent(AbstractQAgent):
                 self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minibatch
 #TODO modify. The use of replay memory makes this not SARSA, and unlikely to improve. Remove replay memory.
 class SARSAAgent(AbstractQAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, entropyWeight=1, discountRate=1, baseline=0, epsilon=0, epsilonDecay=1, replayMemoryCapacity=1000, replayFraction=5):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, entropyWeight=1, discountRate=1, baseline=0, epsilon=0, epsilonDecay=1):
         super().__init__(learningRate, actionSpace, hiddenLayers, epsilon, epsilonDecay)
         self.discountRate = discountRate
         self.baseline = baseline
-        self.replayMemoryS1s = []
-        self.replayMemoryA1s = []
-        self.replayMemoryRs  = []
-        self.replayMemoryS2s = []
-        self.replayMemoryA2s = []
-        self.replayMemoryCapacity = replayMemoryCapacity
-        self.replayFraction = replayFraction
         self.entropyWeight=entropyWeight
     def train_step(self, x):
         @tf.function
@@ -322,34 +315,6 @@ class SARSAAgent(AbstractQAgent):
         if len(observationsThisEpoch)>1: #if we have a transition to add
             self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-1], actionsThisEpoch[-1]))
             #add the transition
-            self.replayMemoryS1s.append(observationsThisEpoch[-2])
-            self.replayMemoryA1s.append(actionsThisEpoch[-2])
-            self.replayMemoryRs.append(rewardsThisEpoch[-2])
-            self.replayMemoryS2s.append(observationsThisEpoch[-1])
-            self.replayMemoryA2s.append(actionsThisEpoch[-1])
-            if len(self.replayMemoryS1s)>self.replayMemoryCapacity: #if this puts us over capacity remove the oldest transition to put us back under cap
-                self.replayMemoryS1s.pop(0)
-                self.replayMemoryA1s.pop(0)
-                self.replayMemoryRs.pop(0)
-                self.replayMemoryS2s.pop(0)
-                self.replayMemoryA2s.pop(0)
-            
-            if endOfEpoch:
-                #build the minibatch
-                miniBatchS1s = []
-                miniBatchAs  = []
-                miniBatchRs  = []
-                miniBatchS2s = []
-                miniBatchA2s = []
-                
-                for i in random.sample(range(len(self.replayMemoryS1s)), min(len(self.replayMemoryS1s), int(self.replayMemoryCapacity/self.replayFraction))):
-                    miniBatchS1s.append(self.replayMemoryS1s[i])
-                    miniBatchAs.append(self.replayMemoryA1s[i])
-                    miniBatchRs.append(self.replayMemoryRs[i])
-                    miniBatchS2s.append(self.replayMemoryS2s[i])
-                    miniBatchA2s.append(self.replayMemoryA2s[i])
-                dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s, miniBatchA2s))
-                self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minibatch
 
 class ActorCriticAgent(AbstractActorCriticAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5):

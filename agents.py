@@ -362,21 +362,6 @@ class ActorCriticAgent(AbstractActorCriticAgent):
             optimizer=tf.optimizers.Adam(learning_rate=learningRate),
             metrics="loss"
         )
-    def call(self, s):
-        for layer in self.layers:
-            s = layer(s)
-        return s
-    def act(self, s):
-        self.epsilon *= self.epsilonDecay #epsilon decay
-        validActions = self.validActions(s) #get valid actions
-        if random.random()<self.epsilon: #chance to act randomly
-            return random.choice(validActions)
-        else:
-            probs = tf.nn.softmax(self(s)[0][:len(self.actionSpace)]) #ignore Q-vals and take probs
-            newProbs = [0.0] * len(probs)
-            for i in validActions:
-                newProbs[i] = probs[i]
-            return tfp.distributions.Categorical(probs=newProbs).sample()
     @tf.function
     def train_step(self, x):
         with tf.GradientTape(persistent=True) as tape:
@@ -440,21 +425,6 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
             optimizer=tf.optimizers.Adam(learning_rate=self.learningRate),
             metrics="loss"
         )
-    def call(self, s):
-        for layer in self.layers:
-            s = layer(s)
-        return s
-    def act(self, s):
-        self.epsilon *= self.epsilonDecay #epsilon decay
-        validActions = self.validActions(s) #get valid actions
-        if random.random()<self.epsilon: #chance to act randomly
-            return random.choice(validActions)
-        else:
-            probs = tf.nn.softmax(self(s)[0][:len(self.actionSpace)]) #ignore Q-vals and take probs
-            newProbs = [0.0] * len(probs)
-            for i in validActions:
-                newProbs[i] = probs[i]
-            return tfp.distributions.Categorical(probs=newProbs).sample()
     @tf.function
     def train_step(self, x):
         with tf.GradientTape(persistent=True) as tape:

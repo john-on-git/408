@@ -1,5 +1,5 @@
 from time import sleep
-from jgw_cs408.environments import TagEnv
+from environments import TagEnv
 import keyboard
 import pygame
 
@@ -15,7 +15,7 @@ def setAction(input):
             nextAction = 1
     timeout = 10
 
-env = TagEnv(render_mode="human", maxTime=-1)
+env = TagEnv(render_mode="human", maxTime=-1, arenaDimensions=(1000,1000))
 nextAction = 1
 timeout = 10
 TICK_RATE_HZ = 100

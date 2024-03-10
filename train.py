@@ -2,8 +2,8 @@ import random
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from jgw_cs408.environments import Environment, MazeEnv, TagEnv, TTTEnv
-from jgw_cs408.agents import *
+from environments import Environment, MazeEnv, TagEnv, TTTEnv
+from agents import *
 import time
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 from time import sleep
-from jgw_cs408.environments import TTTEnv, Team
-from jgw_cs408.agents import *
+from environments import TTTEnv, Team, TTTSearchAgent
+from agents import *
 import keyboard
 import pygame
 import tensorflow as tf
@@ -14,12 +14,12 @@ def opponentAct():
     return (s, None, terminated, truncated, {})
 
 env = TTTEnv(render_mode="human", opponent=None)
-opponent = REINFORCE_MENTAgent(epsilon=0, learningRate=0, hiddenLayers=[layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)], discountRate=0, actionSpace=env.ACTION_SPACE, validActions=env.validActions)
-opponent.load_weights("jgw_cs408/checkpoints/TTTREINFORCE_MENTAgent.tf")
+opponent = TTTSearchAgent(None,epsilon=.5)#REINFORCE_MENTAgent(epsilon=0, learningRate=0, hiddenLayers=[layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)], discountRate=0, actionSpace=env.ACTION_SPACE, validActions=env.validActions)
+#opponent.load_weights("../checkpoints/TTTREINFORCE_MENTAgent.tf")
 env.OPPONENT = opponent
 
 keyboard.on_press_key('esc', lambda _: exit())
-
+env.reset()
 _ = opponentAct() #CPU goes first
 while True:
     for event in pygame.event.get():

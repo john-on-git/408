@@ -1,3 +1,0 @@
-checkpoints
-human_interactive
-img

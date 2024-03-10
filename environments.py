@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from jgw_cs408.observer import Observable, Observer
-from jgw_cs408.agents import Agent
+from observer import Observable, Observer
 import math
 import pygame
 from random import Random
@@ -224,10 +223,10 @@ class MazeView(View, Observer):
         self.squares[0].fill(pygame.color.Color(255,255,255))
         
         #player surface
-        self.players[0] = pygame.transform.scale(pygame.image.load("jgw_cs408/img/greenPerson.png"), (self.xSize, self.ySize)) #TODO transparency doesn't work, probably a file format thing
+        self.players[0] = pygame.transform.scale(pygame.image.load("img/greenPerson.png"), (self.xSize, self.ySize)) #TODO transparency doesn't work, probably a file format thing
 
         #coin surface
-        self.coins[0] = pygame.transform.scale(pygame.image.load("jgw_cs408/img/coin.png"), (self.xSize, self.ySize)) #TODO transparency doesn't work, probably a file format thing
+        self.coins[0] = pygame.transform.scale(pygame.image.load("img/coin.png"), (self.xSize, self.ySize)) #TODO transparency doesn't work, probably a file format thing
         
         #create squares
         for y in range(len(world.SQUARES)):
@@ -322,8 +321,8 @@ class TagEnv(Environment, Observable):
         RUNNER_SPEED = 5
         RUNNER_ROTATION_RATE = math.pi/30
         #load hitbox masks
-        RUNNER_HITBOX_FACTORY       = pygame.transform.scale_by(pygame.image.load("jgw_cs408/img/runner.png"), self.SCALE).get_rect
-        self.SEEKER_HITBOX_FACTORY  = pygame.transform.scale_by(pygame.image.load("jgw_cs408/img/seeker.png"), self.SCALE).get_rect
+        RUNNER_HITBOX_FACTORY       = pygame.transform.scale_by(pygame.image.load("img/runner.png"), self.SCALE).get_rect
+        self.SEEKER_HITBOX_FACTORY  = pygame.transform.scale_by(pygame.image.load("img/seeker.png"), self.SCALE).get_rect
 
         arenaX, arenaY = arenaDimensions
         self.seekerMinDistance, self.seekerMaxDistance = seekerMinmaxDistance
@@ -431,8 +430,8 @@ class TagView(View, Observer):
         self.scale = 1/model.SCALE
 
         #load images
-        runnerSurface = pygame.image.load("jgw_cs408/img/runner.png")
-        seekerSurface = pygame.image.load("jgw_cs408/img/seeker.png")
+        runnerSurface = pygame.image.load("img/runner.png")
+        seekerSurface = pygame.image.load("img/seeker.png")
         arenaSurface  = pygame.Surface(pygame.Vector2(model.ARENA.rect.size) * self.scale)
         arenaSurface.fill((255,255,255))
 
@@ -648,7 +647,7 @@ class Team(Enum):
     NOUGHT = 1.0,
     CROSS = 2.0
 class TTTEnv (Environment, Observable):
-    def __init__(self, render_mode:(None|str)=None, size:int=3, opponent:Agent=TTTSearchAgent(None, .75)) -> None:
+    def __init__(self, render_mode:(None|str)=None, size:int=3, opponent=TTTSearchAgent(None, .75)) -> None:
         """
         Initialize a new TTTEnv.
 
@@ -828,10 +827,10 @@ class TTTView(View, Observer):
         self.crosses = [None, []]
 
         #nought surface
-        self.noughts[0] = pygame.transform.scale(pygame.image.load("jgw_cs408/img/nought.png"), (self.xSize+1, self.ySize+1)) #TODO transparency doesn't work, probably a file format thing
+        self.noughts[0] = pygame.transform.scale(pygame.image.load("img/nought.png"), (self.xSize+1, self.ySize+1)) #TODO transparency doesn't work, probably a file format thing
 
         #cross surface
-        self.crosses[0] = pygame.transform.scale(pygame.image.load("jgw_cs408/img/cross.png"), (self.xSize+1, self.ySize+1)) #TODO transparency doesn't work, probably a file format thing
+        self.crosses[0] = pygame.transform.scale(pygame.image.load("img/cross.png"), (self.xSize+1, self.ySize+1)) #TODO transparency doesn't work, probably a file format thing
 
         self.clock = pygame.time.Clock()
         self.running = False

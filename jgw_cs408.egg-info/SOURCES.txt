@@ -1,5 +1,0 @@
-pyproject.toml
-jgw_cs408.egg-info/PKG-INFO
-jgw_cs408.egg-info/SOURCES.txt
-jgw_cs408.egg-info/dependency_links.txt
-jgw_cs408.egg-info/top_level.txt

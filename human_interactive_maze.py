@@ -1,19 +1,24 @@
 from time import sleep
 import pygame
 from environments import MazeEnv
-import keyboard
 
-env = MazeEnv(render_mode="human", nCoins=10)
-
-keyboard.on_press_key('w', lambda _: (env.step(0)))
-keyboard.on_press_key('a', lambda _: (env.step(1)))
-keyboard.on_press_key('s', lambda _: (env.step(2)))
-keyboard.on_press_key('d', lambda _: (env.step(3)))
-keyboard.on_press_key('esc', lambda _: exit())
+env = MazeEnv(render_mode="human", nCoins=10, gameLength=25)
 
 while not env.terminated and not env.truncated:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             exit()
+        elif event.type == pygame.KEYDOWN:
+            match(event.key):
+                case pygame.K_ESCAPE:
+                    exit()
+                case pygame.K_UP:
+                    env.step(0)
+                case pygame.K_LEFT:
+                    env.step(1)
+                case pygame.K_DOWN:
+                    env.step(2)
+                case pygame.K_RIGHT:
+                    env.step(3)
     sleep(.1)
 print("Score:", env.score)

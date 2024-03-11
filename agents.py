@@ -8,14 +8,13 @@ from abc import ABC, abstractmethod
 
 #TODO
     #all agents need to implement blocking of invalid actions. This also needs to be applied to the training logic, i.e. called by q()
-    #remove flatten layer?
 
 class Agent(ABC):
     @abstractmethod
     def act(self,s):
         pass
 
-#this agent chooses actions at random w/ equal probability
+#this agent chooses actions at random w/ equal probability.
 class RandomAgent(Agent):
     def __init__(self, actionSpace):
         self.epsilon = 1
@@ -129,8 +128,9 @@ class AbstractActorCriticAgent(Model, Agent):
             for i in validActions:
                 newProbs[i] = probs[i]
             return tfp.distributions.Categorical(probs=newProbs).sample()
-    
+
 #policy gradient methods
+#from Simple Statistical Gradient-Following Algorithms for Connectionist Reinforcement Learning, Williams, 1992.
 class REINFORCEAgent(AbstractPolicyAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
@@ -171,6 +171,7 @@ class REINFORCEAgent(AbstractPolicyAgent):
                 eligibilityTraces.append(characteristic_eligibilities(observationsThisEpoch[i], actionsThisEpoch[i]))
             
             self.train_step(eligibilityTraces, float(sum(rewardsThisEpoch)))
+#from Function Optimization Using Connectionist Reinforcement Learning Algorithms, Williams & Peng, 1991.
 class REINFORCE_MENTAgent(AbstractPolicyAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, entropyWeight=0):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
@@ -228,6 +229,7 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
 #from Proximal Policy Optimisation (???) TODO
 class PPOAgent(AbstractPolicyAgent):
     pass
+
 #value-based
 #Replay method from Playing Atari with Deep Reinforcement Learning, Mnih et al (Algorithm 1).
 class DQNAgent(AbstractQAgent):
@@ -295,7 +297,7 @@ class DQNAgent(AbstractQAgent):
                     miniBatchS2s.append(self.replayMemoryS2s[i])
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s))
                 self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minibatch
-#TODO modify. The use of replay memory makes this not SARSA, and unlikely to improve. Remove replay memory.
+#This is almost identical to DQN, but learns on-policy.
 class SARSAAgent(AbstractQAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, entropyWeight=1, discountRate=1, baseline=0, epsilon=0, epsilonDecay=1):
         super().__init__(learningRate, actionSpace, hiddenLayers, epsilon, epsilonDecay)
@@ -316,6 +318,7 @@ class SARSAAgent(AbstractQAgent):
             self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-1], actionsThisEpoch[-1]))
             #add the transition
 
+#From Actor-Critic Algorithms, Konda & Tsitsiklis, NIPS 1999.
 class ActorCriticAgent(AbstractActorCriticAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5):
         super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, baseline, replayMemoryCapacity, replayFraction)
@@ -378,7 +381,8 @@ class ActorCriticAgent(AbstractActorCriticAgent):
                     miniBatchS2s.append(self.replayMemoryS2s[i])
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s))
                 self.fit(dataset) #train on the minibatch
-#this is totally messed up, need to reread the sources
+#Synchronous verson of A3C, From Asynchronous Methods for Deep Reinforcement Learning.
+#TODO this is totally messed up, need to reread the sources
 class AdvantageActorCriticAgent(AbstractActorCriticAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5):
         super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, baseline, replayMemoryCapacity, replayFraction)

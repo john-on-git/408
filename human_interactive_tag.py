@@ -1,39 +1,42 @@
 from time import sleep
 from environments import TagEnv
-import keyboard
 import pygame
 
-def setAction(input):
-    global nextAction
-    global timeout
-    match input:
-        case 'a':
-            nextAction = 0
-        case 'd':
-            nextAction = 2
-        case _:
-            nextAction = 1
-    timeout = 10
 
 env = TagEnv(render_mode="human", maxTime=-1, arenaDimensions=(1000,1000))
-nextAction = 1
-timeout = 10
+action = 1
+timeout = None
 TICK_RATE_HZ = 100
+ACTION_DELAY = 3
 tickDelay = 1/TICK_RATE_HZ
 countDownLength = 2 * TICK_RATE_HZ
 endCountDown = countDownLength
 announcedEnding = False
-keyboard.on_press_key('a', lambda _: setAction('a'))
-keyboard.on_press_key('d', lambda _: setAction('d'))
 
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             exit()
-    env.step(nextAction)
+        elif event.type == pygame.KEYDOWN:
+            match(event.key):
+                case pygame.K_ESCAPE:
+                    exit()
+                case pygame.K_LEFT:
+                    action = 0
+                case pygame.K_RIGHT:
+                    action = 2
+        elif event.type == pygame.KEYUP:
+            match(event.key):
+                case pygame.K_LEFT:
+                    timeout = ACTION_DELAY
+                case pygame.K_RIGHT:
+                    timeout = ACTION_DELAY
+
+    env.step(action)
     if timeout==0:
-        nextAction = 1
-    else:
+        action = 1
+        timeout = None
+    elif timeout != None:
         timeout-=1
     sleep(tickDelay)
 

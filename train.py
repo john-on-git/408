@@ -5,19 +5,20 @@ import matplotlib.pyplot as plt
 from environments import Environment, MazeEnv, TagEnv, TTTEnv
 from agents import *
 import time
+import os
 
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    TRAINING_TIME_SECONDS = 30
+    N_TRAINING_EPOCHS = 20
+    N_AGENTS = 1
 
     environments: list[Environment]
     environments = [
-        #MazeEnv(nCoins=10)
-        TagEnv(),
+        MazeEnv(nCoins=10),
+        #TagEnv(),
         #TTTEnv()
     ]
-    metrics = [] #list of metrics each epoch, for each agent, for each environments[i]
-
+    metrics = np.ndarray(shape=(len(environments), N_AGENTS,N_TRAINING_EPOCHS,2))
     for i in range(len(environments)):
         random.seed(RNG_SEED_INIT)
         tf.random.set_seed(RNG_SEED_INIT)
@@ -34,28 +35,35 @@ if __name__ == "__main__":
                 epsilon=0.25,
                 epsilonDecay=.9
             ),
-            AdvantageActorCriticAgent(
-                actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-                validActions=environments[i].validActions,
-                learningRate=.001,
-                discountRate=.95,
-                epsilon=0.25,
-                epsilonDecay=.9
-            )
+            #DQNAgent(
+            #    actionSpace=environments[i].ACTION_SPACE,
+            #    hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #    validActions=environments[i].validActions,
+            #    learningRate=.001,
+            #    discountRate=.95,
+            #    epsilon=0.25,
+            #    epsilonDecay=.9
+            #)
+            # ,AdvantageActorCriticAgent(
+            #     actionSpace=environment.ACTION_SPACE,
+            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #     validActions=environment.validActions,
+            #     learningRate=.001,
+            #     discountRate=.95,
+            #     epsilon=0.25,
+            #     epsilonDecay=.9
+            # )
         ]
-        metrics.append({"reward":[], "loss":[]})
+        assert len(agents) == N_AGENTS
         for j in range(len(agents)):
             print("Training new", type(environments[i]).__name__,"/",type(agents[j]).__name__)
-            metrics[i]["reward"].append(list())
-            metrics[i]["loss"].append(list())
 
             rngSeed=RNG_SEED_INIT
             observation, _ = environments[i].reset(rngSeed)
             observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
             start = time.time()
             epochs = 0
-            while time.time()-start<=TRAINING_TIME_SECONDS:
+            for k in range(N_TRAINING_EPOCHS):
                 Ss = []
                 As = []
                 Rs = []
@@ -68,7 +76,7 @@ if __name__ == "__main__":
                     action = agents[j].act(tf.convert_to_tensor(observation))
                     As.append(action) #record observation for training
 
-                    #pass action to environments[i], get next observation
+                    #pass action to environment, get next observation
                     nextObservation, reward, terminated, truncated, _ = environments[i].step(action)
                     Rs.append(float(reward)) #record observation for training
                     
@@ -76,58 +84,74 @@ if __name__ == "__main__":
                     nextObservation = tf.expand_dims(nextObservation,0)
 
                     agents[j].handleStep(terminated or truncated, Ss, As, Rs, callbacks=[
-                        tf.keras.callbacks.LambdaCallback(on_epoch_end=lambda _, logs: Losses.append(logs["loss"]))
+                        #tf.keras.callbacks.LambdaCallback(on_epoch_end=lambda _, logs: Losses.append(logs["loss"]))
                     ])
                     
                     if terminated or truncated:
                         nextObservation, _ = environments[i].reset(rngSeed)
                         nextObservation = tf.convert_to_tensor(nextObservation)
                         nextObservation = tf.expand_dims(nextObservation,0)
-                        
-                        metrics[i]["reward"][j].append(sum(Rs)) #calc overall reward for graph
-                        metrics[i]["loss"][j].extend(Losses) #calc overall reward for graph
+
+                        metrics[i][j][k][0] = sum(Rs)
+                        metrics[i][j][k][1] = time.time()
                         Ss = []
                         As = []
                         Rs = []
                         epochRunning = False
-                        print("Epoch ", epochs, " Done (r = ", metrics[i]["reward"][j][-1],")", sep="")
+                        print("Epoch ", epochs, " Done (r = ", metrics[i][j][k][0],")", sep="")
                     observation = nextObservation
                 epochs+=1
                 rngSeed+=1
             #finished training this agent
-        #finished training all agents on this environments[i]ironment
-                
-        #save the agents
-        for agent in agents:
-            path = "checkpoints\\tag" + type(agent).__name__ + ".tf"
-            agent.save_weights(path, overwrite=True)
-        
-    def plot(target, agents, yss, metricName):
-        for i in range(len(agents)):
-            ys = yss[i]
+            #write the model weights to file
+            weightsPath = "checkpoints\\" + type(environments[i]).__name__ + "_" + type(agents[j]).__name__ + ".tf"
+            agents[j].save_weights(weightsPath, overwrite=True)
+        #finished training all agents on this environment
+    #finished training all environments
+    #write the metrics to file
+    metricsDir = os.path.dirname(os.path.abspath(__file__)) + "\\metrics"
+    os.makedirs(metricsDir, exist_ok=True)
+    metadataAgents = [type(x).__name__ for x in agents]
+    metadataEnvironments = [type(x).__name__ for x in environments]
+    np.savez(
+        metricsDir + "\\metrics_" + time.strftime("%Y.%m.%d-%H.%M.%S"),
+        agents=metadataAgents,
+        environments=metadataEnvironments,
+        nEpochs = [N_TRAINING_EPOCHS],
+        data=metrics
+    )
+
+    def plot(target, yss, i,m, label):
+        for j in range(len(agents)):
+            ys = []
+            for k in range(N_TRAINING_EPOCHS):
+                ys.append(yss[i][j][k][m])
+
             x = range(len(ys))
-            
+
             #smooth the curve
             smoothedYs = []
             window = []
-            windowSize = 5#max(len(ys)/200, 1)
+            windowSize = 5 #max(len(ys)/200, 1)
             for y in ys:
                 window.append(y)
                 if len(window)>windowSize:
                     window.pop(0)
                 smoothedYs.append(sum(window)/windowSize)
-            target.plot(x,smoothedYs, label=metricName + "(" + type(agents[i]).__name__ + ")")
+            target.plot(x,smoothedYs, label=label + "(" + type(agents[j]).__name__ + ")")
             #m, c = np.polyfit(x,ys,1)
             #plt.plot(m*x + c) #line of best fit
-        target.legend()
+            target.title.set_text(type(environments[i]).__name__)
+            target.legend()
 
     #plot return over time for envs/agents
-    fig, axs = plt.subplots(len(environments))
-    if len(environments)>1:
-        for i in range(len(environments)): #for each env graph
-            plot(axs[i], agents, metrics[i]["reward"], "reward")
+    fig, axs = plt.subplots(nrows=len(environments))
+    #print
+    if len(environments) == 1: #axs is a list, unless the first dimension would be length 1, then it isn't. account for that.
+        plot(axs, metrics, 0,0, "reward")
     else:
-        plot(axs, agents, metrics[0]["reward"], "reward")
+        for i in range(len(environments)):
+            plot(axs[i], metrics, i,0, "reward")
     plt.show()
         
     #prompt to continue training
@@ -138,4 +162,4 @@ if __name__ == "__main__":
     #    targetEpochs+=int(n)
     #else:
     #    trainingRunning = False
-    #    environments[i]s[i].close()
+    #    environments[i].close()

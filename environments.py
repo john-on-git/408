@@ -394,11 +394,8 @@ class TagEnv(Environment, Observable):
                 dy = self.RUNNER.rect.center[1] - seeker.rect.center[1]
                 seeker.rotation = math.atan2(dy, dx)
                 seeker.advance()
-            #check for collisions
                 
-            if self.RUNNER.rect.collidelist([seeker.rect for seeker in self.SEEKERS]) != -1:
-                self.truncated = True
-            elif not self.RUNNER.rect.colliderect(self.ARENA): #with obstacles
+            if (self.RUNNER.rect.collidelist([seeker.rect for seeker in self.SEEKERS]) != -1) or (not self.RUNNER.rect.colliderect(self.ARENA)): #check for collisions
                 self.truncated = True
             elif self.time==self.MAX_TIME: #and time out
                 self.terminated = True

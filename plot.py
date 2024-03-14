@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-npz = np.load("metrics\metrics_2024.03.13-01.43.08.npz")
+npz = np.load("metrics\metrics_2024.03.13-23.34.53.npz")
 environments = npz["environments"]
 agents = npz["agents"]
 nEpochs = npz["nEpochs"][0]

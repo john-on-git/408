@@ -9,16 +9,16 @@ import os
 
 if __name__ == "__main__":
     RNG_SEED_INIT=42
-    N_TRAINING_EPOCHS = 20
+    N_TRAINING_EPOCHS = 250
     N_AGENTS = 1
 
     environments: list[Environment]
     environments = [
-        MazeEnv(nCoins=10),
-        #TagEnv(),
+        #MazeEnv(nCoins=10),
+        TagEnv(),
         #TTTEnv()
     ]
-    metrics = np.ndarray(shape=(len(environments), N_AGENTS,N_TRAINING_EPOCHS,2))
+    metrics = np.ndarray(shape=(len(environments), N_AGENTS, N_TRAINING_EPOCHS, 2))
     for i in range(len(environments)):
         random.seed(RNG_SEED_INIT)
         tf.random.set_seed(RNG_SEED_INIT)
@@ -26,16 +26,34 @@ if __name__ == "__main__":
 
         agents: list[Agent]
         agents = [
-            ActorCriticAgent(
-                actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-                validActions=environments[i].validActions,
-                learningRate=.001,
-                discountRate=.95,
-                epsilon=0.25,
-                epsilonDecay=.9
-            ),
-            #DQNAgent(
+            # REINFORCEAgent(
+            #     actionSpace=environments[i].ACTION_SPACE,
+            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.95,
+            #     epsilon=0.25,
+            #     epsilonDecay=.9
+            # ),
+            # REINFORCE_MENTAgent(
+            #     actionSpace=environments[i].ACTION_SPACE,
+            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.95,
+            #     epsilon=0.25,
+            #     epsilonDecay=.9
+            # ),
+            # PPOAgent(
+            #     actionSpace=environments[i].ACTION_SPACE,
+            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.95,
+            #     epsilon=0.25,
+            #     epsilonDecay=.9
+            # ),
+            # DQNAgent(
             #    actionSpace=environments[i].ACTION_SPACE,
             #    hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
             #    validActions=environments[i].validActions,
@@ -43,16 +61,35 @@ if __name__ == "__main__":
             #    discountRate=.95,
             #    epsilon=0.25,
             #    epsilonDecay=.9
-            #)
-            # ,AdvantageActorCriticAgent(
-            #     actionSpace=environment.ACTION_SPACE,
+            # ),
+            # SARSAAgent(
+            #     actionSpace=environments[i].ACTION_SPACE,
             #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-            #     validActions=environment.validActions,
+            #     validActions=environments[i].validActions,
             #     learningRate=.001,
             #     discountRate=.95,
             #     epsilon=0.25,
             #     epsilonDecay=.9
-            # )
+            # ),
+            # ActorCriticAgent(
+            #     actionSpace=environments[i].ACTION_SPACE,
+            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.95,
+            #     epsilon=0.25,
+            #     epsilonDecay=.9
+            # ),
+            AdvantageActorCriticAgent(
+                actionSpace=environments[i].ACTION_SPACE,
+                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+                validActions=environments[i].validActions,
+                learningRate=.001,
+                discountRate=.95,
+                epsilon=0.5,
+                epsilonDecay=.9,
+                tMax=1000
+            )
         ]
         assert len(agents) == N_AGENTS
         for j in range(len(agents)):
@@ -98,7 +135,7 @@ if __name__ == "__main__":
                         As = []
                         Rs = []
                         epochRunning = False
-                        print("Epoch ", epochs, " Done (r = ", metrics[i][j][k][0],")", sep="")
+                        print("Epoch ", epochs, " Done (r = ", metrics[i][j][k][0],", ε = ", round(agents[j].epsilon,2), ")", sep="")
                     observation = nextObservation
                 epochs+=1
                 rngSeed+=1

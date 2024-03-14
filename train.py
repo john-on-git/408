@@ -1,6 +1,7 @@
 import random
 import numpy as np
 import tensorflow as tf
+from keras import layers
 import matplotlib.pyplot as plt
 from environments import Environment, MazeEnv, TagEnv, TTTEnv
 from agents import *
@@ -80,7 +81,7 @@ if __name__ == "__main__":
             #     epsilon=0.25,
             #     epsilonDecay=.9
             # ),
-            AdvantageActorCriticAgent(
+            PPOAgent(
                 actionSpace=environments[i].ACTION_SPACE,
                 hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
                 validActions=environments[i].validActions,
@@ -88,8 +89,18 @@ if __name__ == "__main__":
                 discountRate=.95,
                 epsilon=0.5,
                 epsilonDecay=.9,
-                tMax=1000
-            )
+                tMax=50
+            ),
+            # AdvantageActorCriticAgent(
+            #     actionSpace=environments[i].ACTION_SPACE,
+            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.95,
+            #     epsilon=0.5,
+            #     epsilonDecay=.9,
+            #     tMax=1000
+            # ),
         ]
         assert len(agents) == N_AGENTS
         for j in range(len(agents)):

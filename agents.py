@@ -94,17 +94,9 @@ class AbstractPolicyAgent(Model, Agent):
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         pass
 class AbstractActorCriticAgent(Model, Agent):
-    def __init__(self, learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, baseline, replayMemoryCapacity, replayFraction, entropyWeight):
+    def __init__(self, learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, entropyWeight):
         super().__init__()
         self.discountRate = discountRate
-        self.baseline = baseline
-        self.replayMemoryS1s = []
-        self.replayMemoryA1s = []
-        self.replayMemoryRs  = []
-        self.replayMemoryS2s = []
-        self.replayMemoryA2s = []
-        self.replayMemoryCapacity = replayMemoryCapacity
-        self.replayFraction = replayFraction
         self.learningRate = learningRate
         self.actionSpace = actionSpace
         self.epsilon = epsilon
@@ -212,7 +204,7 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
                 entropy = 0
                 p = self(s)
                 for a in range(len(self.actionSpace)):
-                    entropy-= tfp.distributions.Categorical(probs=p).prob(a) + tfp.distributions.Categorical(probs=p).log_prob(a)
+                    entropy-= p[a] + tfp.distributions.Categorical(probs=p).log_prob(a)
                 entropies.append(entropy)
             return sum(entropies)/len(entropies)
         #epoch ends, reset env, observation, & reward
@@ -227,73 +219,7 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
                 eligibilityTraces.append(characteristic_eligibilities(observationsThisEpoch[i], actionsThisEpoch[i]))
             
             self.train_step(eligibilityTraces, sum(rewardsThisEpoch) + self.entropyWeight*entropy(observationsThisEpoch))
-#from Proximal Policy Optimisation (???) TODO
-class PPOAgent(AbstractPolicyAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=1, interval=0.2, tMax=100):
-        super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
-        self.interval = interval
-        self.entropyWeight = entropyWeight
-        self.discountRate = discountRate
-        self.tMax = tMax
-    def train_step(self, data):
-        def l():
-            def condClip(x,low,hi):
-                p1 = x<low
-                p2 = x>hi
-                true1Fn = lambda: low
-                true2Fn = lambda: hi
-                false2Fn = lambda: x
-                false1Fn = lambda: tf.cond(p2,true2Fn,false2Fn)
-                return tf.cond(p1,true1Fn,false1Fn)
-            def condMin(x,y):
-                p1 = x<y
-                trueFn = lambda: x
-                falseFn = lambda: y
-                return tf.cond(p1, trueFn, falseFn)
-            #calc loss
-                #calc rt(θ)
-                    #calc the char eligibility w/r to the current probs.
-                    #calc the char eligibility w/r to the new probs.
-                #lower bound, clip and stuff
-            s,a,pOld,adv = data
-            pNew = self(s)[0][a]
-            rt = pNew/pOld
-            return condMin(rt * adv, condClip(rt, 1-self.interval, 1+self.interval) * adv)
-        self.optimizer.minimize(l, self.trainable_weights)
-        return {"loss": l()}
-    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
-        def advantage(Ss,Rs,t): #advantage formula from Async Methods for DRL. calculate Rt + V(st+1...k) + V(st+k), for all states that haven't been trained on yet (all steps since the last t divisible by tMax)
-            advantage = (self(Ss[t])[0][-1]) - (self(Ss[-1])[0][-1])
-            for i in range(len(Ss)-t):
-                advantage += self.discountRate**i * Rs[t+i] 
-            return advantage
-        def entropy(Ss):
-            entropies = []
-            for s in Ss: #sum up the entropy of each state
-                entropy = 0
-                p = self(s)[0]
-                for a in range(len(self.actionSpace)):
-                    entropy-= tfp.distributions.Categorical(probs=p).prob(a) + tfp.distributions.Categorical(probs=p).log_prob(a)
-                entropies.append(entropy)
-            return sum(entropies)/len(entropies)
-        if (len(observationsThisEpoch)%self.tMax==0) or endOfEpoch:
-            trajectoryLength = min(self.tMax, len(observationsThisEpoch))
-            e = entropy(observationsThisEpoch)*self.entropyWeight
-            advantages = []
-            for i in range(trajectoryLength,0,-1): #calculate new advantages
-                advantages.append(advantage(observationsThisEpoch, rewardsThisEpoch, len(observationsThisEpoch)-1-i) + e)
-            observationsSlice = observationsThisEpoch[-trajectoryLength:]
-            actionsSlice = actionsThisEpoch[-trajectoryLength:]
-            dataset = tf.data.Dataset.from_tensor_slices((
-                observationsSlice,
-                actionsSlice,
-                [self(s)[0][a] for s,a in zip(observationsSlice, actionsSlice)], #calculate pOlds, these are the action probs under the policy that generated the transitions
-                advantages
-            ))
-            self.fit(dataset) #train on the minibatch
-        if endOfEpoch:
-            self.epsilon *= self.epsilonDecay #epsilon decay
-            self.advantages = []
+
 #value-based
 #Replay method from Playing Atari with Deep Reinforcement Learning, Mnih et al (Algorithm 1).
 class DQNAgent(AbstractQAgent):
@@ -381,8 +307,15 @@ class SARSAAgent(AbstractQAgent):
 
 #From Actor-Critic Algorithms, Konda & Tsitsiklis, NIPS 1999.
 class ActorCriticAgent(AbstractActorCriticAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5, entropyWeight=1):
-        super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, baseline, replayMemoryCapacity, replayFraction, entropyWeight)
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, replayMemoryCapacity=1000, replayFraction=5, entropyWeight=1):
+        super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, entropyWeight)
+        self.replayMemoryS1s = []
+        self.replayMemoryA1s = []
+        self.replayMemoryRs  = []
+        self.replayMemoryS2s = []
+        self.replayMemoryA2s = []
+        self.replayMemoryCapacity = replayMemoryCapacity
+        self.replayFraction = replayFraction
         #init layers
         self.modelLayers = []
         self.modelLayers.extend(hiddenLayers)
@@ -421,7 +354,7 @@ class ActorCriticAgent(AbstractActorCriticAgent):
                 entropy = 0
                 p = tf.nn.softmax(self(s)[0][:len(self.actionSpace)])
                 for a in range(len(self.actionSpace)):
-                    entropy-= tfp.distributions.Categorical(probs=p).prob(a) + tfp.distributions.Categorical(probs=p).log_prob(a)
+                    entropy-= p[a] + tfp.distributions.Categorical(probs=p).log_prob(a)
                 entropies.append(entropy)
             return sum(entropies)/len(entropies)
         if len(observationsThisEpoch)>1: #if we have a transition to add
@@ -455,8 +388,8 @@ class ActorCriticAgent(AbstractActorCriticAgent):
                 self.fit(dataset) #train on the minibatch
 #Synchronous verson of A3C, From Asynchronous Methods for Deep Reinforcement Learning.
 class AdvantageActorCriticAgent(AbstractActorCriticAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5, entropyWeight=1, tMax=9999):
-        super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, baseline, replayMemoryCapacity, replayFraction,entropyWeight)
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=1, tMax=1000):
+        super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, entropyWeight)
         self.tMax = tMax
         #init layers
         self.modelLayers = []
@@ -486,7 +419,7 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
                 entropy = 0
                 p = tf.nn.softmax(self(s)[0][:-1])
                 for a in range(len(self.actionSpace)):
-                    entropy-= tfp.distributions.Categorical(probs=p).prob(a) + tfp.distributions.Categorical(probs=p).log_prob(a)
+                    entropy-= p[a] + tfp.distributions.Categorical(probs=p).log_prob(a)
                 entropies.append(entropy)
             return sum(entropies)/len(entropies)
         def advantage(Ss,Rs): #calculate Rt + V(st+1...k) + V(st+k), for all states that haven't been trained on yet (all steps since the last t divisible by tMax)
@@ -502,3 +435,70 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
         if (len(observationsThisEpoch)%self.tMax==0) or endOfEpoch:
             data = (observationsThisEpoch[-1], actionsThisEpoch[-1], advantage(observationsThisEpoch, rewardsThisEpoch) + entropy(observationsThisEpoch)*self.entropyWeight)
             self.train_step(data) #train on the minibatch
+#from Proximal Policy Optimisation (???) TODO
+class PPOAgent(AbstractActorCriticAgent):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=1, tMax=1000, interval=0.2):
+        super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, entropyWeight)
+        self.tMax = tMax
+        self.interval = interval
+        self.modelLayers = []
+        self.modelLayers.extend(hiddenLayers)
+        self.modelLayers.append(layers.Dense(len(actionSpace)+1)) #last output is the state V-value, all others are the action probs 
+        self.compile(
+            optimizer=tf.optimizers.Adam(learning_rate=self.learningRate),
+            metrics="loss"
+        )
+    def train_step(self, data):
+        def l():
+            @tf.function
+            def clip(x,low,hi):
+                if x<low:
+                    return low
+                elif x>hi:
+                    return hi
+                else:
+                    return x
+            @tf.function
+            def min(x,y):
+                return x if x<y else y
+            s,a,pOld,adv = data
+            #calc rt(θ)
+            pNew = self(s)[0][a]
+            rt = pNew/pOld
+            return min(rt * adv, clip(rt, 1-self.interval, 1+self.interval) * adv) #lower bound, clip and stuff
+        self.optimizer.minimize(l, self.trainable_weights)
+        return {"loss": l()}
+    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
+        def advantage(Ss,Rs,t): #advantage formula from Async Methods for DRL. calculate Rt + V(st+1...k) + V(st+k), for all states that haven't been trained on yet (all steps since the last t divisible by tMax)
+            advantage = (self(Ss[t])[0][-1]) - (self(Ss[-1])[0][-1])
+            for i in range(len(Ss)-t):
+                advantage += self.discountRate**i * Rs[t+i]
+            return advantage
+        def entropy(Ss):
+            entropies = []
+            for s in Ss: #sum up the entropy of each state
+                entropy = 0
+                p = tf.nn.softmax(self(s)[0][:-1])
+                for a in range(len(self.actionSpace)):
+                    entropy-= p[a] + tfp.distributions.Categorical(probs=p).log_prob(a)
+                entropies.append(entropy)
+            return sum(entropies)/len(entropies)
+        if (len(observationsThisEpoch)%self.tMax==0) or endOfEpoch:
+            m = (len(observationsThisEpoch)%self.tMax)
+            trajectoryLength = self.tMax if m==0 else m
+            e = entropy(observationsThisEpoch)*self.entropyWeight
+            advantages = []
+            for i in range(trajectoryLength,0,-1): #calculate new advantages
+                advantages.append(advantage(observationsThisEpoch, rewardsThisEpoch, len(observationsThisEpoch)-1-i) + e)
+            observationsSlice = observationsThisEpoch[-trajectoryLength:]
+            actionsSlice = actionsThisEpoch[-trajectoryLength:]
+            dataset = tf.data.Dataset.from_tensor_slices((
+                observationsSlice,
+                actionsSlice,
+                [self(s)[0][a] for s,a in zip(observationsSlice, actionsSlice)], #calculate pOlds, these are the action probs under the policy that generated the transitions
+                advantages
+            ))
+            self.fit(dataset) #train on the minibatch
+        if endOfEpoch:
+            self.epsilon *= self.epsilonDecay #epsilon decay
+            self.advantages = []

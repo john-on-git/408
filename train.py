@@ -88,8 +88,7 @@ if __name__ == "__main__":
                 learningRate=.001,
                 discountRate=.95,
                 epsilon=0.5,
-                epsilonDecay=.9,
-                tMax=50
+                epsilonDecay=.9
             ),
             # AdvantageActorCriticAgent(
             #     actionSpace=environments[i].ACTION_SPACE,

@@ -19,7 +19,7 @@ def plot(target, yss, i,m, label):
             #smooth the curve
             smoothedYs = []
             window = []
-            windowSize = 5#max(len(ys)/200, 1)
+            windowSize = max(len(ys)/100, 1)
             for y in ys:
                 window.append(y)
                 if len(window)>windowSize:

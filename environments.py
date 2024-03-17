@@ -12,6 +12,8 @@ class Environment(ABC):
         super().__init__()
         self.ACTION_SPACE: list
         self.View: View | None 
+        self.terminated: bool
+        self.truncated: bool
     def close(self) -> None:
         if self.view is not None:
             self.view.close()
@@ -168,22 +170,17 @@ class MazeEnv(Environment, Observable):
         LOGIT_SOLID  = 1.0
         LOGIT_PLAYER = 2.0
         LOGIT_COIN   = 3.0
-        def calcLogit(y: int,x : int) -> float:
-            if self.SQUARES[y][x] == MazeSquare.SOLID:
-                return LOGIT_SOLID
-            elif self.PLAYER_AVATAR.coords == (y,x):
-                return LOGIT_PLAYER
-            else:
-                for coin in self.coins:
-                    if coin.coords == (y,x):
-                        return LOGIT_COIN
-                return LOGIT_EMPTY
         #construct logits from world
         logits = []
         for y in range(len(self.SQUARES)):
-            logits.append([None] * len(self.SQUARES))
-            for x in range(len(logits[0])):
-                logits[y][x] = calcLogit(y,x)
+            logits.append([LOGIT_SOLID] * len(self.SQUARES))
+        for y,x in self.EMPTY_SQUARES:
+            logits[y][x] = LOGIT_EMPTY
+        for coin in self.coins:
+            y,x = coin.coords
+            logits[y][x] = LOGIT_COIN
+        y,x = self.PLAYER_AVATAR.coords
+        logits[y][x] = LOGIT_PLAYER
         return logits
     def placePlayer(self) -> tuple:
         emptySquares = self.EMPTY_SQUARES.copy()
@@ -397,6 +394,7 @@ class TagEnv(Environment, Observable):
                 
             if (self.RUNNER.rect.collidelist([seeker.rect for seeker in self.SEEKERS]) != -1) or (not self.RUNNER.rect.colliderect(self.ARENA)): #check for collisions
                 self.truncated = True
+                reward = -100
             elif self.time==self.MAX_TIME: #and time out
                 self.terminated = True
         logits = self.calcLogits()

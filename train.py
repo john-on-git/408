@@ -9,96 +9,84 @@ import time
 import os
 
 if __name__ == "__main__":
-    RNG_SEED_INIT=42
-    N_TRAINING_EPOCHS = 250
+    RNG_SEED_INIT=0
+    N_TRAINING_EPOCHS = 1000
     N_AGENTS = 1
 
     environments: list[Environment]
     environments = [
         #MazeEnv(nCoins=10),
+        #TTTEnv(), #crashed on ActorCriticAgent
         TagEnv(),
-        #TTTEnv()
     ]
     metrics = np.ndarray(shape=(len(environments), N_AGENTS, N_TRAINING_EPOCHS, 2))
     for i in range(len(environments)):
-        random.seed(RNG_SEED_INIT)
-        tf.random.set_seed(RNG_SEED_INIT)
-        np.random.seed(RNG_SEED_INIT)
-
         agents: list[Agent]
         agents = [
+            # ActorCriticAgent(
+            #     actionSpace=environments[i].ACTION_SPACE,
+            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.66,
+            #     epsilon=0.5,
+            #     epsilonDecay=.99
+            # ),
+            # AdvantageActorCriticAgent(
+            #     actionSpace=environments[i].ACTION_SPACE,
+            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.66,
+            #     epsilon=.5,
+            #     epsilonDecay=.99,
+            # ),
+            PPOAgent(
+                actionSpace=environments[i].ACTION_SPACE,
+                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+                validActions=environments[i].validActions,
+                learningRate=.0001, #lowering the LR helped
+                discountRate=.66,
+                epsilon=.5,
+                epsilonDecay=.99
+            ),
+
             # REINFORCEAgent(
             #     actionSpace=environments[i].ACTION_SPACE,
             #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
             #     validActions=environments[i].validActions,
             #     learningRate=.001,
-            #     discountRate=.95,
-            #     epsilon=0.25,
-            #     epsilonDecay=.9
+            #     discountRate=.66,
+            #     epsilon=.5,
+            #     epsilonDecay=.99
             # ),
             # REINFORCE_MENTAgent(
             #     actionSpace=environments[i].ACTION_SPACE,
             #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
             #     validActions=environments[i].validActions,
             #     learningRate=.001,
-            #     discountRate=.95,
-            #     epsilon=0.25,
-            #     epsilonDecay=.9
+            #     discountRate=.66,
+            #     epsilon=.5,
+            #     epsilonDecay=.99
             # ),
-            # PPOAgent(
-            #     actionSpace=environments[i].ACTION_SPACE,
-            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-            #     validActions=environments[i].validActions,
-            #     learningRate=.001,
-            #     discountRate=.95,
-            #     epsilon=0.25,
-            #     epsilonDecay=.9
-            # ),
+
             # DQNAgent(
             #    actionSpace=environments[i].ACTION_SPACE,
             #    hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
             #    validActions=environments[i].validActions,
-            #    learningRate=.001,
-            #    discountRate=.95,
-            #    epsilon=0.25,
-            #    epsilonDecay=.9
+            #    learningRate=.1,
+            #    discountRate=.66,
+            #    epsilon=.5,
+            #    epsilonDecay=.99
             # ),
             # SARSAAgent(
             #     actionSpace=environments[i].ACTION_SPACE,
             #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
             #     validActions=environments[i].validActions,
-            #     learningRate=.001,
-            #     discountRate=.95,
-            #     epsilon=0.25,
-            #     epsilonDecay=.9
-            # ),
-            # ActorCriticAgent(
-            #     actionSpace=environments[i].ACTION_SPACE,
-            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-            #     validActions=environments[i].validActions,
-            #     learningRate=.001,
-            #     discountRate=.95,
-            #     epsilon=0.25,
-            #     epsilonDecay=.9
-            # ),
-            PPOAgent(
-                actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-                validActions=environments[i].validActions,
-                learningRate=.001,
-                discountRate=.95,
-                epsilon=0.5,
-                epsilonDecay=.9
-            ),
-            # AdvantageActorCriticAgent(
-            #     actionSpace=environments[i].ACTION_SPACE,
-            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-            #     validActions=environments[i].validActions,
-            #     learningRate=.001,
-            #     discountRate=.95,
-            #     epsilon=0.5,
-            #     epsilonDecay=.9,
-            #     tMax=1000
+            #     learningRate=.1,
+            #     discountRate=.66,
+            #     epsilon=.5,
+            #     epsilonDecay=.99
             # ),
         ]
         assert len(agents) == N_AGENTS
@@ -106,17 +94,18 @@ if __name__ == "__main__":
             print("Training new", type(environments[i]).__name__,"/",type(agents[j]).__name__)
 
             rngSeed=RNG_SEED_INIT
-            observation, _ = environments[i].reset(rngSeed)
-            observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
             start = time.time()
-            epochs = 0
             for k in range(N_TRAINING_EPOCHS):
+                random.seed(rngSeed)
+                tf.random.set_seed(rngSeed)
+                np.random.seed(rngSeed)
                 Ss = []
                 As = []
                 Rs = []
                 Losses = []
-                epochRunning = True
-                while epochRunning: #for each time step in epoch
+                observation, _ = environments[i].reset(rngSeed)
+                observation = tf.expand_dims(tf.convert_to_tensor(observation), 0)
+                while not (environments[i].terminated or environments[i].truncated): #for each time step in epoch
                     Ss.append(observation) #record observation for training
 
                     #prompt agent
@@ -124,30 +113,19 @@ if __name__ == "__main__":
                     As.append(action) #record observation for training
 
                     #pass action to environment, get next observation
-                    nextObservation, reward, terminated, truncated, _ = environments[i].step(action)
+                    observation, reward, terminated, truncated, _ = environments[i].step(action)
                     Rs.append(float(reward)) #record observation for training
                     
-                    nextObservation = tf.convert_to_tensor(nextObservation)
-                    nextObservation = tf.expand_dims(nextObservation,0)
+                    observation = tf.convert_to_tensor(observation)
+                    observation = tf.expand_dims(observation,0)
 
                     agents[j].handleStep(terminated or truncated, Ss, As, Rs, callbacks=[
                         #tf.keras.callbacks.LambdaCallback(on_epoch_end=lambda _, logs: Losses.append(logs["loss"]))
                     ])
-                    
-                    if terminated or truncated:
-                        nextObservation, _ = environments[i].reset(rngSeed)
-                        nextObservation = tf.convert_to_tensor(nextObservation)
-                        nextObservation = tf.expand_dims(nextObservation,0)
-
-                        metrics[i][j][k][0] = sum(Rs)
-                        metrics[i][j][k][1] = time.time()
-                        Ss = []
-                        As = []
-                        Rs = []
-                        epochRunning = False
-                        print("Epoch ", epochs, " Done (r = ", metrics[i][j][k][0],", ε = ", round(agents[j].epsilon,2), ")", sep="")
-                    observation = nextObservation
-                epochs+=1
+                #epoch finished
+                metrics[i][j][k][0] = sum(Rs)
+                metrics[i][j][k][1] = time.time()
+                print("Epoch ", k, " Done (r = ", metrics[i][j][k][0],", ε = ", round(agents[j].epsilon,2), ")", sep="")
                 rngSeed+=1
             #finished training this agent
             #write the model weights to file
@@ -200,7 +178,6 @@ if __name__ == "__main__":
         for i in range(len(environments)):
             plot(axs[i], metrics, i,0, "reward")
     plt.show()
-        
     #prompt to continue training
     
     #n = input("enter number to extend training, non-numeric to end\n")

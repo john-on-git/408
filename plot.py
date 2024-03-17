@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-npz = np.load("metrics\metrics_2024.03.13-23.34.53.npz")
+npz = np.load("metrics/metrics_1000_epochs_17.3.24.npz")
 environments = npz["environments"]
 agents = npz["agents"]
 nEpochs = npz["nEpochs"][0]
@@ -19,13 +19,13 @@ def plot(target, yss, i,m, label):
             #smooth the curve
             smoothedYs = []
             window = []
-            windowSize = max(len(ys)/100, 1)
+            windowSize = 100
             for y in ys:
                 window.append(y)
                 if len(window)>windowSize:
                     window.pop(0)
                 smoothedYs.append(sum(window)/windowSize)
-            target.plot(x,smoothedYs, label=label + "(" + agents[j] + ")")
+            target.plot(x,smoothedYs, label=agents[j])
             #m, c = np.polyfit(x,ys,1)
             #plt.plot(m*x + c) #line of best fit
             target.title.set_text(environments[i])

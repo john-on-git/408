@@ -25,7 +25,7 @@ class RandomAgent(Agent):
         pass
 
 class AbstractQAgent(Model, Agent):
-    def __init__(self, lossFunction, learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay):
         super().__init__()
         self.epsilon = epsilon
         self.epsilonDecay = epsilonDecay
@@ -38,7 +38,6 @@ class AbstractQAgent(Model, Agent):
         self.modelLayers.append(layers.Dense(len(actionSpace)))
         self.compile(
             optimizer=tf.optimizers.Adam(learning_rate=learningRate),
-            loss=lossFunction,
             metrics="loss"
         )
     def call(self, s):
@@ -122,6 +121,7 @@ class AbstractActorCriticAgent(Model, Agent):
 
 #policy gradient methods
 #from Simple Statistical Gradient-Following Algorithms for Connectionist Reinforcement Learning, Williams, 1992.
+#TODO if there's time, rework this to use a loss function (currently it doesn't due to my poor understanding of the topic at the time of implementation)
 class REINFORCEAgent(AbstractPolicyAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
@@ -144,13 +144,13 @@ class REINFORCEAgent(AbstractPolicyAgent):
             grads,
             self.trainable_weights
         )) #Update weights. This function negates the gradient! But we've already inverted the characteristic eligibility (see below).
-        return {"loss": (self.baseline-r)}
+        return {"loss": (r-self.baseline)}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         def characteristic_eligibilities(s, a):
             def lng(a, p):
                 return -tfp.distributions.Categorical(probs=p).log_prob(a) #apply_gradients inverts the gradient, so it must be inverted here as well
             with tf.GradientTape() as tape:
-                return tape.gradient(lng(a,self(s)), self.trainable_weights)
+                return tape.gradient(lng(a,self(s)[0]), self.trainable_weights)
         #epoch ends, reset env, observation, & reward
         if endOfEpoch:
             self.epsilon *= self.epsilonDecay #epsilon decay
@@ -164,8 +164,9 @@ class REINFORCEAgent(AbstractPolicyAgent):
             
             self.train_step(eligibilityTraces, float(sum(rewardsThisEpoch)))
 #from Function Optimization Using Connectionist Reinforcement Learning Algorithms, Williams & Peng, 1991.
+#TODO if there's time, rework this to use a loss function (currently it doesn't due to my poor understanding of the topic at the time of implementation)
 class REINFORCE_MENTAgent(AbstractPolicyAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, entropyWeight=0):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, entropyWeight=1):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
         self.discountRate = discountRate
         self.baseline = baseline
@@ -183,7 +184,7 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
         #multiply by learning rate, reward
         grads = map(lambda x: (r-self.baseline) * x, grads)
         
-        #Update weights. This function negates the gradient! But we've already inverted the characteristic eligibility (see below).
+        #Update weights. This function negates the gradient! But we've already negated the characteristic eligibility (see below).
         self.optimizer.apply_gradients(zip(
             grads,
             self.trainable_weights
@@ -191,20 +192,17 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
         return {"loss": (self.baseline-r)}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         def lng(a, p): #probability mass function, it DOES make sense to calculate this all at once, says so in the paper
-            #The model only converges if we invert the gradient but I have no idea why. 💀
-            #I think it's because apply_gradients is intended to apply gradient w/r to a loss function so it subtracts it by default, but StackEx posters claim that this isn't the case.
-            #(could also be inverted elsewhere but I think doing it here is clearest)
             return -tfp.distributions.Categorical(probs=p).log_prob(a)
         def characteristic_eligibilities(s, a):
             with tf.GradientTape() as tape:
-                return tape.gradient(lng(a,self(s)), self.trainable_weights)
+                return tape.gradient(lng(a,self(s)[0]), self.trainable_weights)
         def entropy(ss):
             entropies = []
             for s in ss: #sum up the entropy of each state
                 entropy = 0
-                p = self(s)
+                p = self(s)[0]
                 for a in range(len(self.actionSpace)):
-                    entropy-= p[a] + tfp.distributions.Categorical(probs=p).log_prob(a)
+                    entropy-= p[a] + tf.math.log(p[a])
                 entropies.append(entropy)
             return sum(entropies)/len(entropies)
         #epoch ends, reset env, observation, & reward
@@ -223,39 +221,27 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
 #value-based
 #Replay method from Playing Atari with Deep Reinforcement Learning, Mnih et al (Algorithm 1).
 class DQNAgent(AbstractQAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, replayMemoryCapacity=1000, replayFraction=5, entropyWeight=1):
-        def l(x): #from atari paper
-            s1,a1,r,s2 = x
-            q2 = self.discountRate*tf.reduce_max(self(s2)) #estimated q-value for on-policy action for s2
-
-            #TODO try fixed weights. create a duplicate model, use it to estimate q2, don't update its weights until end of fit()
-
-            q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
-            return (r+q2-q1)*(r+q2-q1) #calculate error between prediction and (approximated) label
-        super().__init__(l, learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, replayMemoryCapacity=1000, replayFraction=5):
+        super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
         self.discountRate = discountRate
-        self.baseline = baseline
         self.replayMemoryS1s = []
         self.replayMemoryA1s = []   
         self.replayMemoryRs  = []
         self.replayMemoryS2s = []
         self.replayMemoryCapacity = replayMemoryCapacity
         self.replayFraction = replayFraction
-        self.entropyWeight=entropyWeight
+    def train_step(self, data):
+        def l(): #from atari paper
+            s1,a1,r,s2 = data
+            q2 = self.discountRate*tf.reduce_max(self(s2)) #estimated q-value for on-policy action for s2
+
+            #TODO try fixed weights. create a duplicate model, use it to estimate q2, don't update its weights until end of fit()
+
+            q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
+            return (r+q2-q1)*(r+q2-q1) #calculate error between prediction and (approximated) label
+        self.optimizer.minimize(l, self.trainable_weights)
+        return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
-        def entropy(ss):
-            if len(ss)>=2:
-                return 0
-            else:
-                actionCounts = [0] * len(self.actionSpace)
-                entropies = []
-                for s in ss: #sum up the entropy of each state
-                    a = tf.argmax(self(s)[0])
-                    if actionCounts[a] != 0 and sum(actionCounts) != 0:
-                        prob = actionCounts[a]/sum(actionCounts)
-                        entropies.append(-(prob+math.log(prob)))
-                    actionCounts[a]+=1
-                return sum(entropies)/len(entropies)
         if len(observationsThisEpoch)>1: #if we have a transition to add
             self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-1]))
             #add the transition
@@ -279,35 +265,34 @@ class DQNAgent(AbstractQAgent):
                 sample = random.sample(range(len(self.replayMemoryS1s)), min(len(self.replayMemoryS1s), int(self.replayMemoryCapacity/self.replayFraction)))
                 for i in sample:
                     miniBatchS1s.append(self.replayMemoryS1s[i])
-                policyEntropy = self.entropyWeight*entropy(miniBatchS1s)
                 for i in sample:
                     miniBatchAs.append(self.replayMemoryA1s[i])
-                    miniBatchRs.append(self.replayMemoryRs[i]+policyEntropy)
+                    miniBatchRs.append(self.replayMemoryRs[i])
                     miniBatchS2s.append(self.replayMemoryS2s[i])
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s))
                 self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minibatch
-#This is almost identical to DQN, but learns on-policy.
+#This is similar to DQN, but learns on-policy.
 class SARSAAgent(AbstractQAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, entropyWeight=1, discountRate=1, baseline=0, epsilon=0, epsilonDecay=1):
-        def l(x): #from atari paper
-            s1,a1,r,s2,a2 = x
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1):
+        super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
+        self.discountRate = discountRate
+    def train_step(self, data):
+        def l(): #from atari paper
+            s1,a1,r,s2,a2 = data
             q2 = self.discountRate*self(s2)[0][a2] #estimated q-value for on-policy action for s2
             q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
             return tf.math.squared_difference(r+q2, q1)
-        super().__init__(l, learningRate, actionSpace, hiddenLayers, epsilon, epsilonDecay)
-        self.discountRate = discountRate
-        self.baseline = baseline
-        self.entropyWeight=entropyWeight
+        self.optimizer.minimize(l, self.trainable_weights)
+        return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         if endOfEpoch:
             self.epsilon *= self.epsilonDecay #epsilon decay
         if len(observationsThisEpoch)>1: #if we have a transition to add
-            self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-1], actionsThisEpoch[-1]))
-            #add the transition
+            self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-1],actionsThisEpoch[-1]))
 
 #From Actor-Critic Algorithms, Konda & Tsitsiklis, NIPS 1999.
 class ActorCriticAgent(AbstractActorCriticAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, replayMemoryCapacity=1000, replayFraction=5, entropyWeight=1):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, replayMemoryCapacity=1000, replayFraction=5, entropyWeight=.1):
         super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, entropyWeight)
         self.replayMemoryS1s = []
         self.replayMemoryA1s = []
@@ -329,18 +314,18 @@ class ActorCriticAgent(AbstractActorCriticAgent):
         with tf.GradientTape(persistent=True) as tape:
             s1,a,r,s2 = data #unpack transition
 
-            #calculate critic gradients (unlike A2C, removing this step causes the grads to go NaN)
+            #calculate critic loss (unlike A2C, removing this step causes the grads to go NaN)
             q2 = self.discountRate*tf.reduce_max(self(s2)[0][len(self.actionSpace):]) #estimated q-value for on-policy action for s2
             q1 = self(s1)[0][len(self.actionSpace):][a] #estimated q-value for (s,a) yielding r
-            l = (r+q2-q1)**2 #squared error between prediction and (approximated) label.
+            l1 = (r+q2-q1)**2 #squared error between prediction and (approximated) label.
 
-            #calculate actor gradients
-            q = self(s1)[0][len(self.actionSpace):][a] #critic's appraisal of actor's action
-            lng = -tfp.distributions.Categorical(probs=tf.nn.softmax(self(s1)[0][:len(self.actionSpace)])).log_prob(a)
-        grads = tape.gradient(l, self.trainable_weights)
-        actorGrads = tape.gradient(lng, self.trainable_weights) #apply gradients inverts the gradient, so it must be inverted here as well
-        for i in range(len(actorGrads)): #combine actor and critic grads
-            grads[i] += ((tf.nn.tanh(q)) * actorGrads[i])
+            #calculate actor loss
+            #l2 = tanh(Q(s,a)) * ln(q(s,a))
+            l2 =  -tf.math.log(tf.nn.softmax(self(s1)[0][:len(self.actionSpace)])[a]) #apply gradients inverts the gradient, so it must be inverted here as well
+        grads = tape.gradient(l1, self.trainable_weights)
+        actorGrads = tape.gradient(l2, self.trainable_weights) 
+        for i in range(len(grads)): #combine actor and critic grads
+            grads[i] += tf.nn.tanh(self(s1)[0][len(self.actionSpace):][a]) * actorGrads[i]
             #tanh, because the paper (actor-critic NIPS 1999) seems to claim that the actor feedback needs to be normalised
             #in some way, and without it my critic Q-values and gradients keep exploding
 
@@ -354,7 +339,7 @@ class ActorCriticAgent(AbstractActorCriticAgent):
                 entropy = 0
                 p = tf.nn.softmax(self(s)[0][:len(self.actionSpace)])
                 for a in range(len(self.actionSpace)):
-                    entropy-= p[a] + tfp.distributions.Categorical(probs=p).log_prob(a)
+                    entropy-= p[a] + tf.math.log(p[a])
                 entropies.append(entropy)
             return sum(entropies)/len(entropies)
         if len(observationsThisEpoch)>1: #if we have a transition to add
@@ -388,7 +373,7 @@ class ActorCriticAgent(AbstractActorCriticAgent):
                 self.fit(dataset) #train on the minibatch
 #Synchronous verson of A3C, From Asynchronous Methods for Deep Reinforcement Learning.
 class AdvantageActorCriticAgent(AbstractActorCriticAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=1, tMax=1000):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=.1, tMax=1000):
         super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, entropyWeight)
         self.tMax = tMax
         #init layers
@@ -419,7 +404,7 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
                 entropy = 0
                 p = tf.nn.softmax(self(s)[0][:-1])
                 for a in range(len(self.actionSpace)):
-                    entropy-= p[a] + tfp.distributions.Categorical(probs=p).log_prob(a)
+                    entropy-= p[a] + tf.math.log(p[a])
                 entropies.append(entropy)
             return sum(entropies)/len(entropies)
         def advantage(Ss,Rs): #calculate Rt + V(st+1...k) + V(st+k), for all states that haven't been trained on yet (all steps since the last t divisible by tMax)
@@ -437,7 +422,7 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
             self.train_step(data) #train on the minibatch
 #from Proximal Policy Optimisation (???) TODO
 class PPOAgent(AbstractActorCriticAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=1, tMax=1000, interval=0.2):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=.1, tMax=1000, interval=0.2):
         super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, entropyWeight)
         self.tMax = tMax
         self.interval = interval
@@ -450,22 +435,11 @@ class PPOAgent(AbstractActorCriticAgent):
         )
     def train_step(self, data):
         def l():
-            @tf.function
-            def clip(x,low,hi):
-                if x<low:
-                    return low
-                elif x>hi:
-                    return hi
-                else:
-                    return x
-            @tf.function
-            def min(x,y):
-                return x if x<y else y
             s,a,pOld,adv = data
             #calc rt(θ)
             pNew = self(s)[0][a]
             rt = pNew/pOld
-            return min(rt * adv, clip(rt, 1-self.interval, 1+self.interval) * adv) #lower bound, clip and stuff
+            return tf.minimum(rt * adv, tf.clip_by_value(rt, 1-self.interval, 1+self.interval) * adv) #lower bound, clip and stuff
         self.optimizer.minimize(l, self.trainable_weights)
         return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
@@ -473,14 +447,14 @@ class PPOAgent(AbstractActorCriticAgent):
             advantage = (self(Ss[t])[0][-1]) - (self(Ss[-1])[0][-1])
             for i in range(len(Ss)-t):
                 advantage += self.discountRate**i * Rs[t+i]
-            return advantage
+            return tf.nn.tanh(advantage)
         def entropy(Ss):
             entropies = []
             for s in Ss: #sum up the entropy of each state
                 entropy = 0
                 p = tf.nn.softmax(self(s)[0][:-1])
                 for a in range(len(self.actionSpace)):
-                    entropy-= p[a] + tfp.distributions.Categorical(probs=p).log_prob(a)
+                    entropy-= p[a] + tf.math.log(p[a])
                 entropies.append(entropy)
             return sum(entropies)/len(entropies)
         if (len(observationsThisEpoch)%self.tMax==0) or endOfEpoch:

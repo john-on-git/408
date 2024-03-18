@@ -394,7 +394,6 @@ class TagEnv(Environment, Observable):
                 
             if (self.RUNNER.rect.collidelist([seeker.rect for seeker in self.SEEKERS]) != -1) or (not self.RUNNER.rect.colliderect(self.ARENA)): #check for collisions
                 self.truncated = True
-                reward = -100
             elif self.time==self.MAX_TIME: #and time out
                 self.terminated = True
         logits = self.calcLogits()

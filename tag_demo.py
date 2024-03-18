@@ -1,12 +1,12 @@
 from time import sleep
 from environments import TagEnv
-from agents import ActorCriticAgent, REINFORCE_MENTAgent
+from agents import AdvantageActorCriticAgent, REINFORCE_MENTAgent
 import tensorflow as tf
 from keras import layers
 import pygame
 
 env = TagEnv(render_mode="human")
-agent = ActorCriticAgent(
+agent = AdvantageActorCriticAgent(
     actionSpace=env.ACTION_SPACE,
     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
     validActions=env.validActions,
@@ -14,7 +14,7 @@ agent = ActorCriticAgent(
 )
 
 #agent = AdvantageActorCriticAgent(learningRate=0, actionSpace=env.ACTION_SPACE, hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)])
-agent.load_weights("checkpoints\TagEnv_ActorCriticAgent.tf")
+agent.load_weights("checkpoints\TagEnv_AdvantageActorCriticAgent.tf")
 TICK_RATE_HZ = 100
 tickDelay = 1/TICK_RATE_HZ
 countDownLength = 1 * TICK_RATE_HZ

@@ -11,44 +11,44 @@ import os
 if __name__ == "__main__":
     RNG_SEED_INIT=0
     N_TRAINING_EPOCHS = 1000
-    N_AGENTS = 1
+    N_AGENTS = 5
 
     environments: list[Environment]
     environments = [
-        MazeEnv(nCoins=10),
-        #TTTEnv(), #crashed on ActorCriticAgent
+        #MazeEnv(nCoins=10),
+        TTTEnv(),
         #TagEnv(),
     ]
     metrics = np.ndarray(shape=(len(environments), N_AGENTS, N_TRAINING_EPOCHS, 2))
     for i in range(len(environments)):
         agents: list[Agent]
         agents = [
-            # ActorCriticAgent(
-            #     actionSpace=environments[i].ACTION_SPACE,
-            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-            #     validActions=environments[i].validActions,
-            #     learningRate=.0001,
-            #     discountRate=.9,
-            #     epsilon=.25,
-            #     epsilonDecay=.99,
-            #     replayFraction=10
-            # ),
-            # AdvantageActorCriticAgent(
-            #     actionSpace=environments[i].ACTION_SPACE,
-            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-            #     validActions=environments[i].validActions,
-            #     learningRate=.0001,
-            #     discountRate=.9,
-            #     epsilon=.25,
-            #     epsilonDecay=.99,
-            #     criticWeight=1,
-            #     entropyWeight=.01
-            # ),
+            ActorCriticAgent(
+                actionSpace=environments[i].ACTION_SPACE,
+                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.relu)],
+                validActions=environments[i].validActions,
+                learningRate=.001,
+                discountRate=.9,
+                epsilon=.25,
+                epsilonDecay=.99,
+                replayFraction=10
+            ),
+            AdvantageActorCriticAgent(
+                actionSpace=environments[i].ACTION_SPACE,
+                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.relu)],
+                validActions=environments[i].validActions,
+                learningRate=.001,
+                discountRate=.9,
+                epsilon=.25,
+                epsilonDecay=.99,
+                criticWeight=1,
+                entropyWeight=.01
+            ),
             PPOAgent(
                 actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.relu)],
                 validActions=environments[i].validActions,
-                learningRate=.01,
+                learningRate=.001,
                 discountRate=.9,
                 epsilon=.25,
                 epsilonDecay=.99,
@@ -56,43 +56,25 @@ if __name__ == "__main__":
                 entropyWeight=.01
             ),
 
-            # REINFORCEAgent(
-            #     actionSpace=environments[i].ACTION_SPACE,
-            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-            #     validActions=environments[i].validActions,
-            #     learningRate=.001,
-            #     discountRate=.9,
-            #     epsilon=.5,
-            #     epsilonDecay=.99
-            # ),
-            # REINFORCE_MENTAgent(
-            #     actionSpace=environments[i].ACTION_SPACE,
-            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-            #     validActions=environments[i].validActions,
-            #     learningRate=.001,
-            #     discountRate=.9,
-            #     epsilon=.5,
-            #     epsilonDecay=.99
-            # ),
+            REINFORCE_MENTAgent(
+                actionSpace=environments[i].ACTION_SPACE,
+                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.relu)],
+                validActions=environments[i].validActions,
+                learningRate=.001,
+                discountRate=.9,
+                epsilon=.5,
+                epsilonDecay=.99
+            ),
 
-            # DQNAgent(
-            #    actionSpace=environments[i].ACTION_SPACE,
-            #    hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-            #    validActions=environments[i].validActions,
-            #    learningRate=.001,
-            #    discountRate=.9,
-            #    epsilon=.5,
-            #    epsilonDecay=.99
-            # ),
-            # SARSAAgent(
-            #     actionSpace=environments[i].ACTION_SPACE,
-            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-            #     validActions=environments[i].validActions,
-            #     learningRate=.001,
-            #     discountRate=.9,
-            #     epsilon=.5,
-            #     epsilonDecay=.99
-            # ),
+            DQNAgent(
+               actionSpace=environments[i].ACTION_SPACE,
+               hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.relu)],
+               validActions=environments[i].validActions,
+               learningRate=.001,
+               discountRate=.9,
+               epsilon=.5,
+               epsilonDecay=.99
+            ),
         ]
         assert len(agents) == N_AGENTS
         for j in range(len(agents)):
@@ -121,8 +103,8 @@ if __name__ == "__main__":
                     observation, reward, terminated, truncated, _ = environments[i].step(action)
                     Rs.append(float(reward)) #record observation for training
                     
-                    observation = tf.convert_to_tensor(observation)
-                    observation = tf.expand_dims(observation,0)
+                    observation = tf.expand_dims(tf.convert_to_tensor(observation), 0)
+
 
                     agents[j].handleStep(terminated or truncated, Ss, As, Rs, callbacks=[
                         #tf.keras.callbacks.LambdaCallback(on_epoch_end=lambda _, logs: Losses.append(logs["loss"]))

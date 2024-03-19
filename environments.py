@@ -150,6 +150,7 @@ class MazeEnv(Environment, Observable):
                         markedForDelete.append(coin)
                         reward+=SCORE_PER_COIN
                         self.score+=SCORE_PER_COIN
+                        self.food+=FOOD_PER_COIN
             #check for loss
             if self.GAME_LENGTH is not None and self.time>=self.GAME_LENGTH:
                 self.terminated = True #end of game because of time out
@@ -163,7 +164,6 @@ class MazeEnv(Environment, Observable):
             if type(entity) == MazeCoin:
                 self.coins.remove(entity)
                 self.placeCoin() #remember to replace it
-                self.food+=FOOD_PER_COIN
         self.notify() #update view
         return (logits, reward, self.terminated, self.truncated, info)
     def calcLogits(self) -> list[float]:

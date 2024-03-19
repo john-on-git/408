@@ -130,7 +130,7 @@ class REINFORCEAgent(AbstractPolicyAgent):
     def train_step(self, data):
         def l():
             s,a,r = data
-            return -(r-self.baseline) * tf.math.log(self(s)[a])
+            return -(r-self.baseline) * tf.math.log(self(s)[0][a])
         self.optimizer.minimize(l, self.trainable_weights)
         return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
@@ -155,7 +155,7 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
     def train_step(self, data):
         def l():
             s,a,r,h = data
-            return -(r - self.baseline + self.entropyWeight*h) * tf.math.log(self(s)[a]) #negate, because this is a loss & we are trying to minimize it
+            return -(r - self.baseline + self.entropyWeight*h) * tf.math.log(self(s)[0][a]) #negate, because this is a loss & we are trying to minimize it
         self.optimizer.minimize(l, self.trainable_weights)
         return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
@@ -196,9 +196,6 @@ class DQNAgent(AbstractQAgent):
         def l(): #from atari paper
             s1,a1,r,s2 = data
             q2 = self.discountRate*tf.reduce_max(self(s2)) #estimated q-value for on-policy action for s2
-
-            #TODO try fixed weights. create a duplicate model, use it to estimate q2, don't update its weights until end of fit()
-
             q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
             return (r+q2-q1)*(r+q2-q1) #calculate error between prediction and (approximated) label
         self.optimizer.minimize(l, self.trainable_weights)
@@ -280,11 +277,13 @@ class ActorCriticAgent(AbstractActorCriticAgent):
             #calculate critic loss (T-D MSE)
             q2 = self.discountRate*tf.reduce_max(self(s2)[0][len(self.actionSpace):]) #estimated Q-value for on-policy action for s2
             q1 = self(s1)[0][len(self.actionSpace):][a] #estimated Q(s,a)
-            lC = (r+q2-q1)**2
+            #normalize the Q-values
+            lC = (r + self.learningRate*q2 - q1)**2
 
             #calculate actor loss
-            lA =  q1 * tf.math.log(tf.nn.softmax(self(s1)[0][:len(self.actionSpace)])[a]) #apply gradients inverts the gradient, so it must be inverted here as well
+            lA =  (r + self.learningRate*q2) * tf.math.log(tf.nn.softmax(self(s1)[0][:len(self.actionSpace)])[a]) #apply gradients inverts the gradient, so it must be inverted here as well
             return -(lA - self.criticWeight*lC + self.entropyWeight*h)
+        
         self.optimizer.minimize(l, self.trainable_weights)
         return {"loss": l()} #TODO
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]): 

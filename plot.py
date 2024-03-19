@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-npz = np.load("metrics/metrics_2024.03.19-03.40.45.npz")
+npz = np.load("metrics/metrics_2024.03.19-05.46.13.npz")
 environments = npz["environments"]
 agents = npz["agents"]
 nEpochs = npz["nEpochs"][0]
@@ -19,7 +19,7 @@ def plot(target, yss, i,m, label):
             #smooth the curve
             smoothedYs = []
             window = []
-            windowSize = 20
+            windowSize = 50
             for y in ys:
                 window.append(y)
                 if len(window)>windowSize:

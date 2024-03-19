@@ -3,15 +3,14 @@ from keras import Model
 from keras import layers
 import random
 import tensorflow_probability as tfp
-import math
 from abc import ABC, abstractmethod
-
-#TODO
-    #all agents need to implement blocking of invalid actions. This also needs to be applied to the training logic, i.e. called by q()
 
 class Agent(ABC):
     @abstractmethod
     def act(self,s):
+        pass
+    @abstractmethod
+    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         pass
 
 #this agent chooses actions at random w/ equal probability.
@@ -121,7 +120,6 @@ class AbstractActorCriticAgent(Model, Agent):
 
 #policy gradient methods
 #from Simple Statistical Gradient-Following Algorithms for Connectionist Reinforcement Learning, Williams, 1992.
-#TODO if there's time, rework this to use a loss function (currently it doesn't due to my poor understanding of the topic at the time of implementation)
 class REINFORCEAgent(AbstractPolicyAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
@@ -144,8 +142,6 @@ class REINFORCEAgent(AbstractPolicyAgent):
                 rewardsThisEpoch,
             ))
             self.fit(dataset) #train on the minibatch
-#from Function Optimization Using Connectionist Reinforcement Learning Algorithms, Williams & Peng, 1991.
-#TODO if there's time, rework this to use a loss function (currently it doesn't due to my poor understanding of the topic at the time of implementation)
 class REINFORCE_MENTAgent(AbstractPolicyAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, entropyWeight=1):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
@@ -277,7 +273,6 @@ class ActorCriticAgent(AbstractActorCriticAgent):
             #calculate critic loss (T-D MSE)
             q2 = self.discountRate*tf.reduce_max(self(s2)[0][len(self.actionSpace):]) #estimated Q-value for on-policy action for s2
             q1 = self(s1)[0][len(self.actionSpace):][a] #estimated Q(s,a)
-            #normalize the Q-values
             lC = (r + self.learningRate*q2 - q1)**2
 
             #calculate actor loss
@@ -341,9 +336,9 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
         )
     def train_step(self, data):
         def l():
-            s,a,r,h = data
+            s,p,r,h = data
             adv = (r - self(s)[0][-1])
-            lA = adv * tf.math.log(tf.nn.softmax(self(s)[0][:-1])[a]) #characteristic eligibility. apply_gradients inverts the gradient, so it must be inverted here as well
+            lA = adv * tf.math.log(p) #characteristic eligibility. apply_gradients inverts the gradient, so it must be inverted here as well
             lC = adv**2
             return -(lA - self.criticWeight*lC + self.entropyWeight*h)
         self.optimizer.minimize(l, self.trainable_weights)
@@ -367,17 +362,17 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
                 discRs[i] = r
             return discRs
         if (len(observationsThisEpoch)%self.tMax==0) or endOfEpoch:
-            m = len(observationsThisEpoch)%(self.tMax-1) #TODO, wrong?
+            m = len(observationsThisEpoch)%(self.tMax) #TODO, wrong?
             trajectoryLength = self.tMax if m==0 else m
 
             ssSlice = observationsThisEpoch[-trajectoryLength:]
-            asSlice = actionsThisEpoch[-trajectoryLength:]
+            ps = [tf.nn.softmax(self(s)[0][:-1])[a] for s,a in zip(ssSlice, actionsThisEpoch[-trajectoryLength:])]
             rsSlice = discountedFutureRewards(rewardsThisEpoch[-trajectoryLength:])
             hs = entropies(ssSlice)
 
             dataset = tf.data.Dataset.from_tensor_slices((
                 ssSlice,
-                asSlice,
+                ps,
                 rsSlice,
                 hs
             ))

@@ -20,13 +20,13 @@ class Environment(ABC):
             self.view = None
         self.terminated = True
     @abstractmethod
+    def reset(self, seed:int) -> tuple[list[float], dict]:
+        pass
+    @abstractmethod
     def step(self,a:int) -> tuple[list[float], int, bool, bool, dict]:
         pass
     @abstractmethod
     def validActions(self,s) -> list[int]:
-        pass
-    @abstractmethod
-    def reset(self, seed:int) -> tuple[list[float], dict]:
         pass
 class View(ABC):
     def __init__(self) -> None:
@@ -50,11 +50,9 @@ class View(ABC):
 
 
 
-SCORE_PER_COIN = 1
-FOOD_PER_COIN = 10
-INITIAL_FOOD = FOOD_PER_COIN * 2
-
 #Maze
+MAZE_REWARD_PER_COIN = 1
+
 #models
 class MazeSquare(Enum):
     EMPTY = 0,
@@ -66,7 +64,7 @@ class MazeCoin(MazeEntity):
     def __init__(self, coords) -> None:
         super().__init__(coords)
 class MazeEnv(Environment, Observable):
-    def __init__(self, render_mode:(None|str)=None, startPosition:(str|tuple)="random", nCoins:int=3, gameLength:int=100) -> None:
+    def __init__(self, render_mode:(None|str)=None, startPosition:(str|tuple)="random", nCoins:int=3, gameLength:int=100, foodPerCoin:int=10) -> None:
         """
         Initialize a new MazeEnv.
 
@@ -90,6 +88,7 @@ class MazeEnv(Environment, Observable):
         self.INITIAL_PLAYER_POSITION = startPosition
         self.GAME_LENGTH = gameLength
         self.N_COINS = nCoins
+        self.FOOD_PER_COIN = foodPerCoin
         self.EMPTY_SQUARES = [] #pre-calculated for placing entities
         for y in range(len(self.SQUARES)):
             for x in range(len(self.SQUARES[y])):
@@ -104,14 +103,17 @@ class MazeEnv(Environment, Observable):
             self.view = None
     def reset(self, seed:int=None) -> None:
         self.random = Random(seed)
-        self.score = 0
-        self.food = INITIAL_FOOD
+        self.food = self.FOOD_PER_COIN * 2
         self.time = 0
         self.terminated = False
         self.truncated = False
         self.coins = []
         if self.INITIAL_PLAYER_POSITION=="random":
-            self.placePlayer()
+            emptySquares = self.EMPTY_SQUARES.copy()
+            for xs in [self.coins]:
+                for x in xs:
+                    emptySquares.remove(x.coords)
+            self.PLAYER_AVATAR = MazeEntity(coords=self.random.choice(emptySquares))
         else:
             self.PLAYER_AVATAR = MazeEntity(self.INITIAL_PLAYER_POSITION)
         for _ in range(self.N_COINS): #add coins
@@ -119,14 +121,10 @@ class MazeEnv(Environment, Observable):
         self.notify() #update view
         return (self.calcLogits(), None)
     def step(self, action:(0|1|2|3|4)):
-        def canMoveTo(coords : tuple) -> bool:
-            y,x = coords
-            return x>=0 and y>=0 and y<len(self.SQUARES) and x<len(self.SQUARES[0]) and self.SQUARES[y][x] == MazeSquare.EMPTY
         reward = 0
         if not self.terminated and not self.truncated:
-            self.food-=1
-            self.time+=1 #advance time
-            markedForDelete = [] #things to be deleted this step
+            self.food-=1 #update food
+            self.time+=1 #update time
             #move player avatar
             match action:
                 case 0:
@@ -141,16 +139,18 @@ class MazeEnv(Environment, Observable):
                     target = self.PLAYER_AVATAR.coords                                      #pass
                 case _:
                     raise Exception("Got invalid action "+str(action)+". Expected (0|1|2|3|4).")
-
-            if canMoveTo(target):
+            #move the player to the target if possible (it must be an empty square inside the game board)
+            y,x = target
+            if x>=0 and y>=0 and y<len(self.SQUARES) and x<len(self.SQUARES[0]) and self.SQUARES[y][x] == MazeSquare.EMPTY:
                 self.PLAYER_AVATAR.coords = target
+                
+            markedForDelete = [] #things to be deleted this step
             #coin collection, spawn new coin
-                for coin in self.coins:
-                    if coin.coords == self.PLAYER_AVATAR.coords:
-                        markedForDelete.append(coin)
-                        reward+=SCORE_PER_COIN
-                        self.score+=SCORE_PER_COIN
-                        self.food+=FOOD_PER_COIN
+            for coin in self.coins:
+                if coin.coords == self.PLAYER_AVATAR.coords:
+                    markedForDelete.append(coin)
+                    reward+=MAZE_REWARD_PER_COIN
+                    self.food+=self.FOOD_PER_COIN
             #check for loss
             if self.GAME_LENGTH is not None and self.time>=self.GAME_LENGTH:
                 self.terminated = True #end of game because of time out
@@ -166,9 +166,22 @@ class MazeEnv(Environment, Observable):
                 self.placeCoin() #remember to replace it
         self.notify() #update view
         return (logits, reward, self.terminated, self.truncated, info)
+    def placeCoin(self) -> None:
+        validForCoin = self.EMPTY_SQUARES.copy() #list of empty squares
+        validForCoin.remove(self.PLAYER_AVATAR.coords) #can't place on player
+        for xs in [self.coins]: #or on top of another coin
+            for x in xs:
+                validForCoin.remove(x.coords)
+        self.coins.append(MazeCoin(coords=self.random.choice(validForCoin)))  
+    def validActions(self,s):
+        return [0,1,2,3] #AI agents can't pass as it's never the optimal move
+    def notify(self) -> None:
+        observer: Observer
+        for observer in super().getObservers():
+            observer.update(self)
     def calcLogits(self) -> list[float]:
-        LOGIT_SOLID  = 0.0
-        LOGIT_EMPTY  = 1.0
+        LOGIT_EMPTY  = 0.0
+        LOGIT_SOLID  = 1.0
         LOGIT_COIN   = 2.0
         LOGIT_PLAYER = 4.0
         #construct logits from world
@@ -183,25 +196,6 @@ class MazeEnv(Environment, Observable):
         y,x = self.PLAYER_AVATAR.coords
         logits[y][x] += LOGIT_PLAYER
         return logits
-    def placePlayer(self) -> tuple:
-        emptySquares = self.EMPTY_SQUARES.copy()
-        for xs in [self.coins]:
-            for x in xs:
-                emptySquares.remove(x.coords)
-        self.PLAYER_AVATAR = MazeEntity(coords=self.random.choice(emptySquares))
-    def placeCoin(self) -> None:
-        validForCoin = self.EMPTY_SQUARES.copy() #list of empty squares
-        validForCoin.remove(self.PLAYER_AVATAR.coords) #can't place on player
-        for xs in [self.coins]: #or on top of another coin
-            for x in xs:
-                validForCoin.remove(x.coords)
-        self.coins.append(MazeCoin(coords=self.random.choice(validForCoin)))  
-    def validActions(self,s):
-        return self.ACTION_SPACE
-    def notify(self) -> None:
-        observer: Observer
-        for observer in super().getObservers():
-            observer.update(self)
 #view
 class MazeView(View, Observer):
     def __init__(self, world : MazeEnv, resolution) -> None:
@@ -275,6 +269,8 @@ class MazeView(View, Observer):
 
 
 #Tag
+TAG_REWARD_PER_STEP = 1
+
 class Entity():
     def __init__(self, rect:pygame.Rect, rotation:float=0) -> None:
         self.rect = rect
@@ -346,14 +342,14 @@ class TagEnv(Environment, Observable):
             self.view.open()
         else:
             self.view = None
-    def genSeekerPosition(self,dist=None):
-        dist = self.random.randint(self.seekerMinDistance*self.SCALE,self.seekerMaxDistance*self.SCALE) if dist==None else dist
-        x,y = self.RUNNER.rect.center
-        angle = self.RUNNER.rotation + math.pi + (self.random.random() * self.SEEKER_SPREAD) - (self.SEEKER_SPREAD/2) #180 degree cone behind runner 
-        x += math.cos(angle)*dist
-        y += math.sin(angle)*dist
-        return (x,y)
     def reset(self, seed:int=None) -> tuple[list[float], int, bool, bool, None]:
+        def genSeekerPosition(self,dist=None):
+            dist = self.random.randint(self.seekerMinDistance*self.SCALE,self.seekerMaxDistance*self.SCALE) if dist==None else dist
+            x,y = self.RUNNER.rect.center
+            angle = self.RUNNER.rotation + math.pi + (self.random.random() * self.SEEKER_SPREAD) - (self.SEEKER_SPREAD/2) #180 degree cone behind runner 
+            x += math.cos(angle)*dist
+            y += math.sin(angle)*dist
+            return (x,y)
         self.random = Random(seed)
         self.RUNNER.rect.center = self.RUNNER_INITIAL_POSITION
         self.RUNNER.rotation = self.RUNNER_INITIAL_ROTATION()
@@ -362,16 +358,16 @@ class TagEnv(Environment, Observable):
         self.SEEKERS.clear()
         for _ in range(self.N_SEEKERS):
             seeker = Mover(rect=self.SEEKER_HITBOX_FACTORY(), rotation=0, speed=self.SEEKER_SPEED * self.SCALE)
-            seeker.rect.center = self.genSeekerPosition() #TODO random positioning
+            seeker.rect.center = genSeekerPosition()
             self.SEEKERS.append(seeker)
 
         self.terminated = False
         self.truncated = False
         self.time = 0
         self.notify() #redraw
-        return (self.calcLogits(), None)
+        return (self.calcLogits(), None) 
     def step(self, action : (0|1|2) = 1) -> tuple[tuple, int, bool, bool, dict]:
-        reward = 1 #baseline per step
+        reward = TAG_REWARD_PER_STEP #baseline per step
         if not self.terminated and not self.truncated:
             self.time+=1
             #update the runner's angle according to the action
@@ -401,17 +397,17 @@ class TagEnv(Environment, Observable):
         info = {}
         self.notify() #update view
         return (logits, reward, self.terminated, self.truncated, info)
-    def calcLogits(self) -> list[float]:
-        x = [float(self.RUNNER.rect.center[0]), float(self.RUNNER.rect.center[1]), self.RUNNER.rotation]
-        for seeker in self.SEEKERS:
-            x.extend([float(seeker.rect.center[0]), float(seeker.rect.center[1])])
-        return x 
     def validActions(self,s):
         return self.ACTION_SPACE
     def notify(self) -> None:
         observer: Observer
         for observer in super().getObservers():
             observer.update(self)
+    def calcLogits(self) -> list[float]:
+        x = [float(self.RUNNER.rect.center[0]), float(self.RUNNER.rect.center[1]), self.RUNNER.rotation]
+        for seeker in self.SEEKERS:
+            x.extend([float(seeker.rect.center[0]), float(seeker.rect.center[1])])
+        return x
 #view
 class TagView(View, Observer):
     def __init__(self, model : TagEnv, resolution) -> None:
@@ -475,10 +471,10 @@ class TagView(View, Observer):
 
 
 #Tic-Tac-Toe
-REWARD_PARTIAL_CHAIN = 2
-REWARD_WIN = 10
-REWARD_PER_TIME_STEP = 1
-REWARD_INVALID = -100
+TTT_REWARD_PARTIAL_CHAIN = 2
+TTT_REWARD_WIN = 10
+TTT_REWARD_PER_STEP = 1
+TTT_REWARD_INVALID = -100
 
 #models
 class TTTSearchAgent(): #agent that follows the optimal policy by performing a tree search
@@ -679,125 +675,112 @@ class TTTEnv (Environment, Observable):
         self.terminated = False
         self.notify() #update view
         return (self.calcLogits(Team.NOUGHT), None)
-    def calcLogits(self, actor :Team) -> list[float]:
-        def logit(actor : Team, cell:Team):
-            if cell==Team.EMPTY:
-                return 0.0 #empty
-            elif cell==actor:
-                return 1.0 #player
-            else:
-                return 2.0 #enemy
-        logits = []
-        for row in self.board:
-            for cell in row:
-                logits.append(logit(actor, cell))
-        return logits
     def step(self, action): #both sides move
+        def halfStep(actor : Team, action : int) -> list[list[float], int, bool, bool, None]: #one side moves
+            def calcLongestChains(n) -> dict[Team, int]:
+                longestChains = {Team.NOUGHT:0, Team.CROSS:0}
+                #check horizontals
+                for i in range(n):
+                    chain = None
+                    for j in range(n):
+                        if chain==None:
+                            if self.board[i][j] != Team.EMPTY: #chain starts
+                                chain = [self.board[i][j], 1]
+                                if longestChains[chain[0]]<chain[1]:
+                                    longestChains[chain[0]] = chain[1]
+                        else:
+                            if self.board[i][j] == chain[0]: #chain continues
+                                chain[1]+=1
+                                if longestChains[chain[0]]<chain[1]:
+                                    longestChains[chain[0]] = chain[1]
+                            else: #chain ends
+                                chain = None
+                #check verticals
+                for j in range(n):
+                    chain = None
+                    for i in range(n):
+                        if chain==None:
+                            if self.board[i][j] != Team.EMPTY: #chain starts
+                                chain = [self.board[i][j], 1]
+                                if longestChains[chain[0]]<chain[1]:
+                                    longestChains[chain[0]] = chain[1]
+                        else:
+                            if self.board[i][j] == chain[0]: #chain continues
+                                chain[1]+=1
+                                if longestChains[chain[0]]<chain[1]:
+                                    longestChains[chain[0]] = chain[1]
+                            else: #chain ends
+                                chain = None
+                #check diagonals (lines that don't intersect corners don't count as they can't contribute to a winning line)
+                #\
+                chain = None
+                for i in range(n):
+                    if chain==None:
+                        if self.board[i][i] != Team.EMPTY: #chain starts
+                            chain = [self.board[i][i], 1]
+                            if longestChains[chain[0]]<chain[1]:
+                                longestChains[chain[0]] = chain[1]
+                    else:
+                        if self.board[i][i] == chain[0]: #chain continues
+                            chain[1]+=1
+                            if longestChains[chain[0]]<chain[1]:
+                                longestChains[chain[0]] = chain[1]
+                        else: #chain ends
+                            chain = None
+                #/
+                chain = None
+                for i in range(n):
+                        if chain==None:
+                            if self.board[i][n-1-i] != Team.EMPTY: #chain starts
+                                chain = [self.board[i][n-1-i], 1]
+                                if longestChains[chain[0]]<chain[1]:
+                                    longestChains[chain[0]] = chain[1]
+                        else:
+                            if self.board[i][n-1-i] == chain[0]: #chain continues
+                                chain[1]+=1
+                                if longestChains[chain[0]]<chain[1]:
+                                    longestChains[chain[0]] = chain[1]
+                            else: #chain ends
+                                chain = None
+
+                return longestChains
+            reward = 0
+            actX = action%self.SIZE
+            actY = int(action/self.SIZE)
+            if not self.terminated and not self.truncated:
+                if self.board[actY][actX] == Team.EMPTY: #enact the move if it's valid
+                    self.board[actY][actX] = actor
+                    longestChains = calcLongestChains(self.SIZE)
+                    if longestChains[actor]==self.SIZE: #end the game if there's a winner
+                        reward = TTT_REWARD_WIN**self.SIZE #distribute reward for the win
+                        self.truncated = True
+                    else:
+                        #end the game as a draw if all cells are full
+                        self.terminated = True
+                        for row in self.board:
+                            for cell in row:
+                                if cell == Team.EMPTY:
+                                    self.terminated = False
+                        reward += TTT_REWARD_PARTIAL_CHAIN**longestChains[actor] #distribute reward for partial chains
+                else:
+                    reward = TTT_REWARD_INVALID #distribute negative reward for invalid moves
+                reward+=TTT_REWARD_PER_STEP #distribute reward for time
+            logits = self.calcLogits(actor)
+            info = {}
+            self.notify() #update view
+            return (logits, reward, self.terminated, self.truncated, info)
         if not action == None:
-            s, rew, terminated, truncated, info = self.halfStep(Team.NOUGHT, action) #handle player action
+            s, rew, terminated, truncated, info = halfStep(Team.NOUGHT, action) #handle player action
             if not (terminated or truncated):
                 opponentAction = self.OPPONENT.act(tf.expand_dims(tf.convert_to_tensor(self.calcLogits(Team.CROSS)),0))
                 if self.board[int(opponentAction/self.SIZE)][opponentAction%self.SIZE] == Team.EMPTY: #enact move if valid
-                    s, _, terminated, truncated, info = self.halfStep(Team.CROSS, opponentAction) #handle CPU action
+                    s, _, terminated, truncated, info = halfStep(Team.CROSS, opponentAction) #handle CPU action
                     return (s, rew, terminated, truncated, info)
                 else:
                     self.terminated = True
                     raise Exception("Tic-Tac-Toe opponent made invalid move.")
             else:
                 return (s, rew, True, truncated, info) #last move of the game
-    def halfStep(self, actor : Team, action : int) -> list[list[float], int, bool, bool, None]: #one side moves
-        def calcLongestChains(n) -> dict[Team, int]:
-            longestChains = {Team.NOUGHT:0, Team.CROSS:0}
-            #check horizontals
-            for i in range(n):
-                chain = None
-                for j in range(n):
-                    if chain==None:
-                        if self.board[i][j] != Team.EMPTY: #chain starts
-                            chain = [self.board[i][j], 1]
-                            if longestChains[chain[0]]<chain[1]:
-                                longestChains[chain[0]] = chain[1]
-                    else:
-                        if self.board[i][j] == chain[0]: #chain continues
-                            chain[1]+=1
-                            if longestChains[chain[0]]<chain[1]:
-                                longestChains[chain[0]] = chain[1]
-                        else: #chain ends
-                            chain = None
-            #check verticals
-            for j in range(n):
-                chain = None
-                for i in range(n):
-                    if chain==None:
-                        if self.board[i][j] != Team.EMPTY: #chain starts
-                            chain = [self.board[i][j], 1]
-                            if longestChains[chain[0]]<chain[1]:
-                                longestChains[chain[0]] = chain[1]
-                    else:
-                        if self.board[i][j] == chain[0]: #chain continues
-                            chain[1]+=1
-                            if longestChains[chain[0]]<chain[1]:
-                                longestChains[chain[0]] = chain[1]
-                        else: #chain ends
-                            chain = None
-            #check diagonals (lines that don't intersect corners don't count as they can't contribute to a winning line)
-            #\
-            chain = None
-            for i in range(n):
-                if chain==None:
-                    if self.board[i][i] != Team.EMPTY: #chain starts
-                        chain = [self.board[i][i], 1]
-                        if longestChains[chain[0]]<chain[1]:
-                            longestChains[chain[0]] = chain[1]
-                else:
-                    if self.board[i][i] == chain[0]: #chain continues
-                        chain[1]+=1
-                        if longestChains[chain[0]]<chain[1]:
-                            longestChains[chain[0]] = chain[1]
-                    else: #chain ends
-                        chain = None
-            #/
-            chain = None
-            for i in range(n):
-                    if chain==None:
-                        if self.board[i][n-1-i] != Team.EMPTY: #chain starts
-                            chain = [self.board[i][n-1-i], 1]
-                            if longestChains[chain[0]]<chain[1]:
-                                longestChains[chain[0]] = chain[1]
-                    else:
-                        if self.board[i][n-1-i] == chain[0]: #chain continues
-                            chain[1]+=1
-                            if longestChains[chain[0]]<chain[1]:
-                                longestChains[chain[0]] = chain[1]
-                        else: #chain ends
-                            chain = None
-
-            return longestChains
-        reward = 0
-        actX = action%self.SIZE
-        actY = int(action/self.SIZE)
-        if not self.terminated and not self.truncated:
-            if self.board[actY][actX] == Team.EMPTY: #enact the move if it's valid
-                self.board[actY][actX] = actor
-                longestChains = calcLongestChains(self.SIZE)
-                if longestChains[actor]==self.SIZE: #end the game if there's a winner
-                    reward = REWARD_WIN**self.SIZE #distribute reward for the win
-                    self.truncated = True
-                else:
-                    #end the game as a draw if all cells are full
-                    self.terminated = True
-                    for row in self.board:
-                        for cell in row:
-                            if cell == Team.EMPTY:
-                                self.terminated = False
-                    reward += REWARD_PARTIAL_CHAIN**longestChains[actor] #distribute reward for partial chains
-            else:
-                reward = REWARD_INVALID #distribute negative reward for invalid moves
-            reward+=REWARD_PER_TIME_STEP #distribute reward for time
-        logits = self.calcLogits(actor)
-        info = {}
-        self.notify() #update view
-        return (logits, reward, self.terminated, self.truncated, info)
     def validActions(self,s):
         valid = []
         for action in self.ACTION_SPACE:
@@ -808,6 +791,19 @@ class TTTEnv (Environment, Observable):
         observer: Observer
         for observer in super().getObservers():
             observer.update(self)
+    def calcLogits(self, actor :Team) -> list[float]:
+            def logit(actor : Team, cell:Team):
+                if cell==Team.EMPTY:
+                    return 0.0 #empty
+                elif cell==actor:
+                    return 1.0 #player
+                else:
+                    return 2.0 #enemy
+            logits = []
+            for row in self.board:
+                for cell in row:
+                    logits.append(logit(actor, cell))
+            return logits
 #view
 class TTTView(View, Observer):
     def __init__(self, resolution, model : TTTEnv) -> None:

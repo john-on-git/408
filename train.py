@@ -15,8 +15,8 @@ if __name__ == "__main__":
 
     environments: list[Environment]
     environments = [
-        #MazeEnv(nCoins=10),
-        TTTEnv(),
+        MazeEnv(),
+        #TTTEnv(),
         #TagEnv(),
     ]
     metrics = np.ndarray(shape=(len(environments), N_AGENTS, N_TRAINING_EPOCHS, 2))
@@ -41,8 +41,6 @@ if __name__ == "__main__":
                 discountRate=.9,
                 epsilon=.25,
                 epsilonDecay=.99,
-                criticWeight=1,
-                entropyWeight=.01
             ),
             PPOAgent(
                 actionSpace=environments[i].ACTION_SPACE,
@@ -52,8 +50,6 @@ if __name__ == "__main__":
                 discountRate=.9,
                 epsilon=.25,
                 epsilonDecay=.99,
-                criticWeight=1,
-                entropyWeight=.01
             ),
 
             REINFORCE_MENTAgent(
@@ -68,7 +64,7 @@ if __name__ == "__main__":
 
             DQNAgent(
                actionSpace=environments[i].ACTION_SPACE,
-               hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.relu)],
+               hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
                validActions=environments[i].validActions,
                learningRate=.001,
                discountRate=.9,
@@ -107,7 +103,7 @@ if __name__ == "__main__":
 
 
                     agents[j].handleStep(terminated or truncated, Ss, As, Rs, callbacks=[
-                        #tf.keras.callbacks.LambdaCallback(on_epoch_end=lambda _, logs: Losses.append(logs["loss"]))
+                        #tf.keras.callbacks.LambdaCallback(on_epoch_end=lambda _, logs: Losses.append(logs["loss"])) #for logging loss as a metric (not used atm)
                     ])
                 #epoch finished
                 metrics[i][j][k][0] = sum(Rs)

@@ -4,11 +4,21 @@ from agents import *
 import pygame
 import tensorflow as tf
 
+def opponentAct():
+    action = opponent.act(tf.expand_dims(tf.convert_to_tensor(env.calcLogits(Team.CROSS)),0))
+    if env.board[int(action/env.SIZE)][action%env.SIZE] == Team.EMPTY: #enact move if valid
+        s, _, terminated, truncated, _ = env.halfStep(Team.CROSS, action) #handle CPU action
+    else:
+        raise Exception("Tic-Tac-Toe opponent made invalid move.")
+    return (s, None, terminated, truncated, {})
+
 env = TTTEnv(render_mode="human", opponent=None)
-opponent = TTTSearchAgent(None,epsilon=.75)
+opponent = AdvantageActorCriticAgent(epsilon=0, learningRate=0, hiddenLayers=[layers.Flatten(), layers.Dense(16,activation=tf.nn.relu)], discountRate=0, actionSpace=env.ACTION_SPACE, validActions=env.validActions)
+opponent.load_weights("checkpoints/TTTEnv_A2C_DEMO.tf")
 env.OPPONENT = opponent
 
 env.reset()
+opponentAct() #CPU goes first
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -33,3 +43,4 @@ while True:
     if env.terminated or env.truncated:
         sleep(1)
         _ = env.reset()
+        opponentAct() #CPU goes first

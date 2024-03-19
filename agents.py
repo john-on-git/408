@@ -127,42 +127,23 @@ class REINFORCEAgent(AbstractPolicyAgent):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
         self.discountRate = discountRate
         self.baseline = baseline
-    def train_step(self, eligibilityTraces, r):
-        #calculate sum of eligibility traces
-        grads = [None] * len(eligibilityTraces[0])
-        for eligibilityTrace in eligibilityTraces:
-            for i in range(len(eligibilityTrace)):
-                if grads[i] is None:
-                    grads[i] = eligibilityTrace[i]
-                else:
-                    grads[i] += eligibilityTrace[i]
-        
-        #multiply by learning rate, reward
-        grads = map(lambda x: (r-self.baseline) * x, grads)
-        
-        self.optimizer.apply_gradients(zip(
-            grads,
-            self.trainable_weights
-        )) #Update weights. This function negates the gradient! But we've already inverted the characteristic eligibility (see below).
-        return {"loss": (r-self.baseline)}
+    def train_step(self, data):
+        def l():
+            s,a,r = data
+            return -(r-self.baseline) * tf.math.log(self(s)[a])
+        self.optimizer.minimize(l, self.trainable_weights)
+        return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
-        def characteristic_eligibilities(s, a):
-            def lng(a, p):
-                return -tfp.distributions.Categorical(probs=p).log_prob(a) #apply_gradients inverts the gradient, so it must be inverted here as well
-            with tf.GradientTape() as tape:
-                return tape.gradient(lng(a,self(s)[0]), self.trainable_weights)
         #epoch ends, reset env, observation, & reward
         if endOfEpoch:
             self.epsilon *= self.epsilonDecay #epsilon decay
             #train model
-            #zip observations & rewards, pass to fit
-            eligibilityTraces = []
-            
-            #calculate characteristic eligibilities
-            for i in range(len(observationsThisEpoch)):
-                eligibilityTraces.append(characteristic_eligibilities(observationsThisEpoch[i], actionsThisEpoch[i]))
-            
-            self.train_step(eligibilityTraces, float(sum(rewardsThisEpoch)))
+            dataset = tf.data.Dataset.from_tensor_slices((
+                observationsThisEpoch,
+                actionsThisEpoch,
+                rewardsThisEpoch,
+            ))
+            self.fit(dataset) #train on the minibatch
 #from Function Optimization Using Connectionist Reinforcement Learning Algorithms, Williams & Peng, 1991.
 #TODO if there's time, rework this to use a loss function (currently it doesn't due to my poor understanding of the topic at the time of implementation)
 class REINFORCE_MENTAgent(AbstractPolicyAgent):
@@ -171,32 +152,14 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
         self.discountRate = discountRate
         self.baseline = baseline
         self.entropyWeight = entropyWeight
-    def train_step(self, eligibilityTraces, r):
-        #calculate sum of eligibility traces
-        grads = [None] * len(eligibilityTraces[0])
-        for eligibilityTrace in eligibilityTraces:
-            for i in range(len(eligibilityTrace)):
-                if grads[i] is None:
-                    grads[i] = eligibilityTrace[i]
-                else:
-                    grads[i] += eligibilityTrace[i]
-        
-        #multiply by learning rate, reward
-        grads = map(lambda x: (r-self.baseline) * x, grads)
-        
-        #Update weights. This function negates the gradient! But we've already negated the characteristic eligibility (see below).
-        self.optimizer.apply_gradients(zip(
-            grads,
-            self.trainable_weights
-        ))
-        return {"loss": (self.baseline-r)}
+    def train_step(self, data):
+        def l():
+            s,a,r,h = data
+            return -(r - self.baseline + self.entropyWeight*h) * tf.math.log(self(s)[a]) #negate, because this is a loss & we are trying to minimize it
+        self.optimizer.minimize(l, self.trainable_weights)
+        return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
-        def lng(a, p): #probability mass function, it DOES make sense to calculate this all at once, says so in the paper
-            return -tfp.distributions.Categorical(probs=p).log_prob(a)
-        def characteristic_eligibilities(s, a):
-            with tf.GradientTape() as tape:
-                return tape.gradient(lng(a,self(s)[0]), self.trainable_weights)
-        def entropy(ss):
+        def entropies(ss):
             entropies = []
             for s in ss: #sum up the entropy of each state
                 entropy = 0
@@ -204,19 +167,18 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
                 for a in range(len(self.actionSpace)):
                     entropy-= p[a] * tf.math.log(p[a])
                 entropies.append(entropy)
-            return sum(entropies)/len(entropies)
+            return entropies
         #epoch ends, reset env, observation, & reward
         if endOfEpoch:
             self.epsilon *= self.epsilonDecay #epsilon decay
             #train model
-            #zip observations & rewards, pass to fit
-            eligibilityTraces = []
-            
-            #calculate characteristic eligibilities
-            for i in range(len(observationsThisEpoch)):
-                eligibilityTraces.append(characteristic_eligibilities(observationsThisEpoch[i], actionsThisEpoch[i]))
-            
-            self.train_step(eligibilityTraces, sum(rewardsThisEpoch) + self.entropyWeight*entropy(observationsThisEpoch))
+            dataset = tf.data.Dataset.from_tensor_slices((
+                observationsThisEpoch,
+                actionsThisEpoch,
+                rewardsThisEpoch,
+                entropies(observationsThisEpoch)
+            ))
+            self.fit(dataset) #train on the minibatch
 
 #value-based
 #Replay method from Playing Atari with Deep Reinforcement Learning, Mnih et al (Algorithm 1).
@@ -321,8 +283,6 @@ class ActorCriticAgent(AbstractActorCriticAgent):
             lC = (r+q2-q1)**2
 
             #calculate actor loss
-            #tanh, because the paper (actor-critic NIPS 1999) seems to claim that the actor feedback needs to be normalised
-            #lActor = tanh(Q(s,a)) * ln(q(s,a))
             lA =  q1 * tf.math.log(tf.nn.softmax(self(s1)[0][:len(self.actionSpace)])[a]) #apply gradients inverts the gradient, so it must be inverted here as well
             return -(lA - self.criticWeight*lC + self.entropyWeight*h)
         self.optimizer.minimize(l, self.trainable_weights)

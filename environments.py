@@ -150,11 +150,6 @@ class MazeEnv(Environment, Observable):
                         markedForDelete.append(coin)
                         reward+=SCORE_PER_COIN
                         self.score+=SCORE_PER_COIN
-            for entity in markedForDelete:
-                if type(entity) == MazeCoin:
-                    self.coins.remove(entity)
-                    self.placeCoin() #remember to replace it
-                    self.food+=FOOD_PER_COIN
             #check for loss
             if self.GAME_LENGTH is not None and self.time>=self.GAME_LENGTH:
                 self.terminated = True #end of game because of time out
@@ -163,13 +158,19 @@ class MazeEnv(Environment, Observable):
         #reward = reward
         logits = self.calcLogits()
         info = {}
+        
+        for entity in markedForDelete:
+            if type(entity) == MazeCoin:
+                self.coins.remove(entity)
+                self.placeCoin() #remember to replace it
+                self.food+=FOOD_PER_COIN
         self.notify() #update view
         return (logits, reward, self.terminated, self.truncated, info)
     def calcLogits(self) -> list[float]:
-        LOGIT_EMPTY  = 0.0
-        LOGIT_SOLID  = 1.0
-        LOGIT_PLAYER = 2.0
-        LOGIT_COIN   = 3.0
+        LOGIT_SOLID  = 0.0
+        LOGIT_EMPTY  = 1.0
+        LOGIT_COIN   = 2.0
+        LOGIT_PLAYER = 4.0
         #construct logits from world
         logits = []
         for y in range(len(self.SQUARES)):
@@ -178,9 +179,9 @@ class MazeEnv(Environment, Observable):
             logits[y][x] = LOGIT_EMPTY
         for coin in self.coins:
             y,x = coin.coords
-            logits[y][x] = LOGIT_COIN
+            logits[y][x] += LOGIT_COIN
         y,x = self.PLAYER_AVATAR.coords
-        logits[y][x] = LOGIT_PLAYER
+        logits[y][x] += LOGIT_PLAYER
         return logits
     def placePlayer(self) -> tuple:
         emptySquares = self.EMPTY_SQUARES.copy()

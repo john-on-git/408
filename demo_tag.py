@@ -27,7 +27,6 @@ while True:
         if event.type == pygame.QUIT:
             exit()
 
-    observation = tf.expand_dims(tf.convert_to_tensor(env.step(agent.act(observation))[0]),0)
     
     sleep(tickDelay)
 
@@ -35,16 +34,16 @@ while True:
     if env.truncated:
         if not announcedEnding:
             announcedEnding = True
-            print("Agent crashed.")
+            print(f"Agent crashed.")
         endCountDown-=1
     elif env.terminated:
         if not announcedEnding:
             announcedEnding = True
             print("Agent won.")
         endCountDown-=1
-
-    
-    if endCountDown == 0:
+    elif endCountDown == 0:
         env.reset()
         announcedEnding = False
         endCountDown = countDownLength
+    else:
+        observation = tf.expand_dims(tf.convert_to_tensor(env.step(agent.act(observation))[0]),0)

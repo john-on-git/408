@@ -15,84 +15,84 @@ if __name__ == "__main__":
 
     environments: list[Environment]
     environments = [
-        #MazeEnv(nCoins=10),
+        MazeEnv(nCoins=10),
         #TTTEnv(), #crashed on ActorCriticAgent
-        TagEnv(),
+        #TagEnv(),
     ]
     metrics = np.ndarray(shape=(len(environments), N_AGENTS, N_TRAINING_EPOCHS, 2))
     for i in range(len(environments)):
         agents: list[Agent]
         agents = [
-            ActorCriticAgent(
-                actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-                validActions=environments[i].validActions,
-                learningRate=.0001,
-                discountRate=.9,
-                epsilon=.25,
-                epsilonDecay=.99,
-                replayFraction=10
-            ),
-            AdvantageActorCriticAgent(
-                actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-                validActions=environments[i].validActions,
-                learningRate=.0001,
-                discountRate=.9,
-                epsilon=.25,
-                epsilonDecay=.99,
-                criticWeight=1,
-                entropyWeight=.01
-            ),
+            # ActorCriticAgent(
+            #     actionSpace=environments[i].ACTION_SPACE,
+            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.0001,
+            #     discountRate=.9,
+            #     epsilon=.25,
+            #     epsilonDecay=.99,
+            #     replayFraction=10
+            # ),
+            # AdvantageActorCriticAgent(
+            #     actionSpace=environments[i].ACTION_SPACE,
+            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.0001,
+            #     discountRate=.9,
+            #     epsilon=.25,
+            #     epsilonDecay=.99,
+            #     criticWeight=1,
+            #     entropyWeight=.01
+            # ),
             PPOAgent(
-                actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-                validActions=environments[i].validActions,
-                learningRate=.0001,
-                discountRate=.9,
-                epsilon=.25,
-                epsilonDecay=.99,
-                criticWeight=1,
-                entropyWeight=.01
-            ),
-
-            REINFORCEAgent(
-                actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-                validActions=environments[i].validActions,
-                learningRate=.001,
-                discountRate=.9,
-                epsilon=.5,
-                epsilonDecay=.99
-            ),
-            REINFORCE_MENTAgent(
-                actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-                validActions=environments[i].validActions,
-                learningRate=.001,
-                discountRate=.9,
-                epsilon=.5,
-                epsilonDecay=.99
-            ),
-
-            DQNAgent(
-               actionSpace=environments[i].ACTION_SPACE,
-               hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
-               validActions=environments[i].validActions,
-               learningRate=.01,
-               discountRate=.9,
-               epsilon=.5,
-               epsilonDecay=.99
-            ),
-            SARSAAgent(
                 actionSpace=environments[i].ACTION_SPACE,
                 hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
                 validActions=environments[i].validActions,
                 learningRate=.01,
                 discountRate=.9,
-                epsilon=.5,
-                epsilonDecay=.99
+                epsilon=.25,
+                epsilonDecay=.99,
+                criticWeight=1,
+                entropyWeight=.01
             ),
+
+            # REINFORCEAgent(
+            #     actionSpace=environments[i].ACTION_SPACE,
+            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.9,
+            #     epsilon=.5,
+            #     epsilonDecay=.99
+            # ),
+            # REINFORCE_MENTAgent(
+            #     actionSpace=environments[i].ACTION_SPACE,
+            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.9,
+            #     epsilon=.5,
+            #     epsilonDecay=.99
+            # ),
+
+            # DQNAgent(
+            #    actionSpace=environments[i].ACTION_SPACE,
+            #    hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #    validActions=environments[i].validActions,
+            #    learningRate=.001,
+            #    discountRate=.9,
+            #    epsilon=.5,
+            #    epsilonDecay=.99
+            # ),
+            # SARSAAgent(
+            #     actionSpace=environments[i].ACTION_SPACE,
+            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.9,
+            #     epsilon=.5,
+            #     epsilonDecay=.99
+            # ),
         ]
         assert len(agents) == N_AGENTS
         for j in range(len(agents)):

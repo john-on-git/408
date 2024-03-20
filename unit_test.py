@@ -104,7 +104,7 @@ class TestMaze(unittest.TestCase):
         SQUARES = [[MazeSquare.EMPTY] * 5] * 4
         SQUARES.append([MazeSquare.SOLID, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY])
 
-        env = MazeEnv(nCoins=0, startPosition=(0,0), squares=SQUARES, gameLength=5)
+        env = MazeEnv(nCoins=0, startPosition=(0,0), squares=SQUARES, gameLength=10)
         env.coins.append(MazeCoin((1,0)))
         env.coins.append(MazeCoin((1,1)))
 
@@ -168,6 +168,30 @@ class TestMaze(unittest.TestCase):
             [1.0, 0.0, 0.0, 0.0, 0.0],
         ]
         observation, reward, truncated, terminated, _ = env.step(4) #pass
+        self.assertFalse(truncated)
+        self.assertFalse(terminated)
+        self.assertEqual(observation, expectedObservation)
+        self.assertEqual(reward, 0)
+        
+        #check edge collision
+        observation, reward, truncated, terminated, _ = env.step(0) #up
+        self.assertFalse(truncated)
+        self.assertFalse(terminated)
+        self.assertEqual(observation, expectedObservation)
+        self.assertEqual(reward, 0)
+        
+        #check wall collision
+        expectedObservation = [
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [4.0, 0.0, 0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+        env.step(2) #down
+        env.step(2) #down
+        env.step(2) #down
+        observation, reward, truncated, terminated, _ = env.step(2) #down
         self.assertTrue(truncated)
         self.assertFalse(terminated)
         self.assertEqual(observation, expectedObservation)

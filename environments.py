@@ -76,7 +76,7 @@ class MazeCoin(MazeEntity):
     def __init__(self, coords) -> None:
         super().__init__(coords)
 class MazeEnv(Environment, Observable):
-    def __init__(self, render_mode:(None|str)=None, startPosition:(str|tuple)="random", nCoins:int=1, gameLength:int=50, squares=None) -> None:
+    def __init__(self, render_mode:(None|str)=None, startPosition:(str|tuple)="random", nCoins:int=1, gameLength:int=50, squares=None, rewardExploration:bool=True) -> None:
         """
         Initialize a new MazeEnv.
 
@@ -100,6 +100,7 @@ class MazeEnv(Environment, Observable):
         self.INITIAL_PLAYER_POSITION = startPosition
         self.GAME_LENGTH = gameLength
         self.N_COINS = nCoins
+        self.REWARD_EXPLORATION = rewardExploration
         self.EMPTY_SQUARES = [] #pre-calculated for placing entities
         for y in range(len(self.SQUARES)):
             for x in range(len(self.SQUARES[y])):
@@ -155,7 +156,7 @@ class MazeEnv(Environment, Observable):
             y,x = target
             if x>=0 and y>=0 and y<len(self.SQUARES) and x<len(self.SQUARES[0]) and self.SQUARES[y][x] == MazeSquare.EMPTY:
                 self.PLAYER_AVATAR.coords = target
-            if self.PLAYER_AVATAR.coords not in self.visited:
+            if self.REWARD_EXPLORATION and self.PLAYER_AVATAR.coords not in self.visited:
                 self.visited.append(self.PLAYER_AVATAR.coords)
                 reward+=MAZE_REWARD_EXPLORATION
             #coin collection, spawn new coin

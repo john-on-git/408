@@ -2,7 +2,7 @@ from time import sleep
 import pygame
 from environments import MazeEnv
 
-env = MazeEnv(render_mode="human", rewardExploration=False)
+env = MazeEnv(render_mode="human", nCoins=0)
 rewardThisEpisode = 0
 totalReward = 0
 nEpisodes = 0
@@ -17,7 +17,7 @@ while running:
                     case pygame.K_ESCAPE:
                         running = False
                     case pygame.K_UP:
-                        _, reward, _, _, _ = env.step(0)
+                        _, reward, _, _, _ = env.step(0)    
                         rewardThisEpisode += reward
                     case pygame.K_LEFT:
                         _, reward, _, _, _ = env.step(1)
@@ -30,6 +30,7 @@ while running:
                         rewardThisEpisode += reward
     if running:
         totalReward+=rewardThisEpisode
+        print("reward this episode:", rewardThisEpisode)
         nEpisodes+=1
         rewardThisEpisode = 0
         env.reset()

@@ -631,9 +631,9 @@ class TTTSearchAgent(): #agent that follows the optimal policy by performing a t
         self.epsilon *= self.epsilonDecay
         if self.random.random()<self.epsilon: #chance to act randomly
             valid = []
-            for i in range(9):
-                if s[0][i] == 0.0:
-                    valid.append(i)
+            for a in actionSpace(s):
+                if s[0][a] == 0.0:
+                    valid.append(a)
             return self.random.choice(valid)
         else:
             s = s.numpy()

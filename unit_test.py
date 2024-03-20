@@ -7,7 +7,7 @@ import random
 import numpy as np
 
 #this is the closest thing to a unit test I could come up with
-class TestAgents(unittest.TestCase):
+class TestAgents():
     def template_test_agent(self, agent):
         random.seed(1)
         tf.random.set_seed(1)

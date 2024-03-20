@@ -4,11 +4,11 @@ from agents import *
 import pygame
 import tensorflow as tf
 
-env = TTTEnv(render_mode="human", opponent=None)
-opponent = TTTSearchAgent(None,epsilon=.75)
-env.OPPONENT = opponent
+env = TTTEnv(render_mode="human", opponent=TTTSearchAgent(None,epsilon=1))
 
 env.reset()
+terminated = False
+truncated = False
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -26,10 +26,18 @@ while True:
                 #grid coord to action
                 action = x + y*env.SIZE
                 if env.board[y][x] == Team.EMPTY:
-                    env.step(action) #take action
+                    _, reward, terminated, truncated, _ = env.step(action) #take action
                 else:
                     print("Invalid move.")
     sleep(.1)
-    if env.terminated or env.truncated:
+    if terminated or truncated:
+        if truncated and reward>=(10**env.SIZE):
+            print("You Won!")
+        elif truncated:
+            print("You Lost. ):")
+        else:
+            print("Draw.")
         sleep(1)
+        terminated = False
+        truncated = False
         _ = env.reset()

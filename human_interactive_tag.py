@@ -3,7 +3,7 @@ from environments import TagEnv
 import pygame
 
 
-env = TagEnv(render_mode="human", nSeekers=0)
+env = TagEnv(render_mode="human")
 
 #redraw rate
 TICK_RATE_HZ = 100

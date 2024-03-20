@@ -15,11 +15,11 @@ class Agent(ABC):
 
 #this agent chooses actions at random w/ equal probability.
 class RandomAgent(Agent):
-    def __init__(self, actionSpace):
+    def __init__(self, validActions):
         self.epsilon = 1
-        self.actionSpace = actionSpace
-    def act(self, _):
-        return random.choice(self.actionSpace)
+        self.validActions = validActions
+    def act(self, s):
+        return random.choice(self.validActions(s))
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         pass
 
@@ -342,11 +342,6 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
             lA = adv * tf.math.log(p) #characteristic eligibility. apply_gradients inverts the gradient, so it must be inverted here as well
             lC = adv**2
             return -(lA - self.criticWeight*lC + self.entropyWeight*h)
-        s,a,r,h = data
-        p = tf.nn.softmax(self(s)[0][:-1])[a]
-        adv = (r - self(s)[0][-1])
-        lA = adv * tf.math.log(p) #characteristic eligibility. apply_gradients inverts the gradient, so it must be inverted here as well
-        lC = adv**2
         self.optimizer.minimize(l, self.trainable_weights)
         return  {"loss": l()} #TODO
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):

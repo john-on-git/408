@@ -51,15 +51,13 @@ class View(ABC):
 #An extremely simple environment for testing agents.
 #If an agent can't achieve the optimal policy on this, it indicates that there's something wrong with the implementation. 
 class TestBanditEnv(Environment):
-    def __init__(self,nMachines:int=2, goodMachine:int=0) -> None:
+    def __init__(self,nMachines:int=2) -> None:
         super().__init__()
         self.ACTION_SPACE = range(nMachines)
-        assert goodMachine in self.ACTION_SPACE
-        self.GOOD_MACHINE = goodMachine
     def reset(self, seed:int=None) -> tuple[list[float], dict]:
         return ([1], {})
     def step(self, a: int) -> tuple[list[float], int, bool, bool, dict]:
-        reward = 1 if a==self.GOOD_MACHINE else 0
+        reward = 1 if a==0 else 0
         return ([1], reward, True, False, {})
     def validActions(self, s) -> list[int]:
         return self.ACTION_SPACE
@@ -78,7 +76,7 @@ class MazeCoin(MazeEntity):
     def __init__(self, coords) -> None:
         super().__init__(coords)
 class MazeEnv(Environment, Observable):
-    def __init__(self, render_mode:(None|str)=None, startPosition:(str|tuple)="random", nCoins:int=1, gameLength:int=50) -> None:
+    def __init__(self, render_mode:(None|str)=None, startPosition:(str|tuple)="random", nCoins:int=1, gameLength:int=50, squares=None) -> None:
         """
         Initialize a new MazeEnv.
 
@@ -91,7 +89,7 @@ class MazeEnv(Environment, Observable):
         Observable.__init__(self)
         #init constants
         self.ACTION_SPACE = [0,1,2,3,4]
-        self.SQUARES = [ #TODO should not be hard-coded
+        self.SQUARES = squares if squares is not None else [ #TODO should not be hard-coded
             [MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY],
             [MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY],
             [MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.SOLID, MazeSquare.SOLID, MazeSquare.EMPTY, MazeSquare.EMPTY],
@@ -129,12 +127,14 @@ class MazeEnv(Environment, Observable):
             self.PLAYER_AVATAR = MazeEntity(coords=self.random.choice(emptySquares))
         else:
             self.PLAYER_AVATAR = MazeEntity(self.INITIAL_PLAYER_POSITION)
+        self.visited.append(self.PLAYER_AVATAR.coords)
         for _ in range(self.N_COINS): #add coins
             self.placeCoin()
         self.notify() #update view
         return (self.calcLogits(), {})
     def step(self, action:(0|1|2|3|4)):
         reward = 0
+        markedForDelete = [] #things to be deleted this step
         if not self.terminated and not self.truncated:
             self.time+=1 #update time
             #move player avatar
@@ -155,7 +155,6 @@ class MazeEnv(Environment, Observable):
             y,x = target
             if x>=0 and y>=0 and y<len(self.SQUARES) and x<len(self.SQUARES[0]) and self.SQUARES[y][x] == MazeSquare.EMPTY:
                 self.PLAYER_AVATAR.coords = target
-            markedForDelete = [] #things to be deleted this step
             if self.PLAYER_AVATAR.coords not in self.visited:
                 self.visited.append(self.PLAYER_AVATAR.coords)
                 reward+=MAZE_REWARD_EXPLORATION
@@ -174,7 +173,8 @@ class MazeEnv(Environment, Observable):
         for entity in markedForDelete:
             if type(entity) == MazeCoin:
                 self.coins.remove(entity)
-                self.placeCoin() #remember to replace it
+                if len(self.coins)<self.N_COINS: #always true during normal gameplay, added to make this possible to unit test. See what I mean?
+                    self.placeCoin() #remember to replace it
         self.notify() #update view
         return (logits, reward, self.terminated, self.truncated, info)
     def placeCoin(self) -> None:
@@ -609,7 +609,7 @@ class TTTSearchAgent(): #agent that follows the optimal policy by performing a t
                         if minScore<alpha or minScore==-999:
                             break
                         beta = min(beta,minScore)
-                    return minScore
+                    return minScore-1 #-1 time penalty
                 else: #stop if terminal
                     return tV
         def maxi(s, depth, alpha, beta) -> int:
@@ -624,7 +624,7 @@ class TTTSearchAgent(): #agent that follows the optimal policy by performing a t
                         if maxScore>beta or maxScore==999:
                             break
                         alpha = max(alpha,maxScore)
-                    return maxScore
+                    return maxScore-1 #-1 time penalty
                 else: #stop if terminal
                     return tV
         self.epsilon *= self.epsilonDecay
@@ -776,22 +776,19 @@ class TTTEnv (Environment, Observable):
                 else:
                     reward = TTT_REWARD_INVALID #distribute negative reward for invalid moves
                 reward+=TTT_REWARD_PER_STEP #distribute reward for time
-            logits = self.calcLogits(actor)
-            info = {}
             self.notify() #update view
-            return (logits, reward, self.terminated, self.truncated, info)
-        if not action == None:
-            s, rew, terminated, truncated, info = halfStep(Team.NOUGHT, action) #handle player action
-            if not (terminated or truncated):
-                opponentAction = self.OPPONENT.act(tf.expand_dims(tf.convert_to_tensor(self.calcLogits(Team.CROSS)),0))
-                if self.board[int(opponentAction/self.SIZE)][opponentAction%self.SIZE] == Team.EMPTY: #enact move if valid
-                    s, _, terminated, truncated, info = halfStep(Team.CROSS, opponentAction) #handle CPU action
-                    return (s, rew, terminated, truncated, info)
-                else:
-                    self.terminated = True
-                    raise Exception("Tic-Tac-Toe opponent made invalid move.")
+            return (reward, self.terminated, self.truncated)
+        rew, terminated, truncated = halfStep(Team.NOUGHT, action) #handle player action
+        if not (terminated or truncated):
+            opponentAction = self.OPPONENT.act(tf.expand_dims(tf.convert_to_tensor(self.calcLogits(Team.CROSS)),0))
+            if self.board[int(opponentAction/self.SIZE)][opponentAction%self.SIZE] == Team.EMPTY: #enact move if valid
+                _, terminated, truncated = halfStep(Team.CROSS, opponentAction) #handle CPU action
+                return (self.calcLogits(Team.NOUGHT), rew, terminated, truncated, {})
             else:
-                return (s, rew, True, truncated, info) #last move of the game
+                self.terminated = True
+                raise Exception("Tic-Tac-Toe opponent made invalid move.")
+        else:
+            return (self.calcLogits(Team.NOUGHT), rew, terminated, truncated, {}) #last move of the game
     def validActions(self,s):
         valid = []
         for action in self.ACTION_SPACE:

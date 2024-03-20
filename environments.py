@@ -48,10 +48,24 @@ class View(ABC):
     def update(self, world):
         pass
 
-
-
+#An extremely simple environment for testing agents.
+#If an agent can't achieve the optimal policy on this, it indicates that there's something wrong with the implementation. 
+class TestBanditEnv(Environment):
+    def __init__(self,nMachines:int=2, goodMachine:int=0) -> None:
+        super().__init__()
+        self.ACTION_SPACE = range(nMachines)
+        assert goodMachine in self.ACTION_SPACE
+        self.GOOD_MACHINE = goodMachine
+    def reset(self, seed:int=None) -> tuple[list[float], dict]:
+        return ([1], {})
+    def step(self, a: int) -> tuple[list[float], int, bool, bool, dict]:
+        reward = 1 if a==self.GOOD_MACHINE else 0
+        return ([1], reward, True, False, {})
+    def validActions(self, s) -> list[int]:
+        return self.ACTION_SPACE
 #Maze
-MAZE_REWARD_PER_COIN = 1
+MAZE_REWARD_PER_COIN = 50
+MAZE_REWARD_EXPLORATION = 1
 
 #models
 class MazeSquare(Enum):
@@ -64,13 +78,13 @@ class MazeCoin(MazeEntity):
     def __init__(self, coords) -> None:
         super().__init__(coords)
 class MazeEnv(Environment, Observable):
-    def __init__(self, render_mode:(None|str)=None, startPosition:(str|tuple)="random", nCoins:int=3, gameLength:int=100, foodPerCoin:int=10) -> None:
+    def __init__(self, render_mode:(None|str)=None, startPosition:(str|tuple)="random", nCoins:int=1, gameLength:int=50) -> None:
         """
         Initialize a new MazeEnv.
 
         Args.
         render_mode: The environment will launch with a human-readable GUI if render_mode is exactly "human".
-        nCoins: Number of coins present at each step. Lower values increase the environment difficulty.
+        nCoins: Number of coins present at each step. Higher values increase the environment difficulty (by enlarging the state space).
         startPosition: Initial coordinates of agent at each epoch, or None for random initial coordinates. Setting to random increases the environment difficulty.
         gameLength: Max length of game, or None for unlimited length.
         """
@@ -88,7 +102,6 @@ class MazeEnv(Environment, Observable):
         self.INITIAL_PLAYER_POSITION = startPosition
         self.GAME_LENGTH = gameLength
         self.N_COINS = nCoins
-        self.FOOD_PER_COIN = foodPerCoin
         self.EMPTY_SQUARES = [] #pre-calculated for placing entities
         for y in range(len(self.SQUARES)):
             for x in range(len(self.SQUARES[y])):
@@ -103,11 +116,11 @@ class MazeEnv(Environment, Observable):
             self.view = None
     def reset(self, seed:int=None) -> None:
         self.random = Random(seed)
-        self.food = self.FOOD_PER_COIN * 2
         self.time = 0
         self.terminated = False
         self.truncated = False
         self.coins = []
+        self.visited = []
         if self.INITIAL_PLAYER_POSITION=="random":
             emptySquares = self.EMPTY_SQUARES.copy()
             for xs in [self.coins]:
@@ -119,11 +132,10 @@ class MazeEnv(Environment, Observable):
         for _ in range(self.N_COINS): #add coins
             self.placeCoin()
         self.notify() #update view
-        return (self.calcLogits(), None)
+        return (self.calcLogits(), {})
     def step(self, action:(0|1|2|3|4)):
         reward = 0
         if not self.terminated and not self.truncated:
-            self.food-=1 #update food
             self.time+=1 #update time
             #move player avatar
             match action:
@@ -143,19 +155,18 @@ class MazeEnv(Environment, Observable):
             y,x = target
             if x>=0 and y>=0 and y<len(self.SQUARES) and x<len(self.SQUARES[0]) and self.SQUARES[y][x] == MazeSquare.EMPTY:
                 self.PLAYER_AVATAR.coords = target
-                
             markedForDelete = [] #things to be deleted this step
+            if self.PLAYER_AVATAR.coords not in self.visited:
+                self.visited.append(self.PLAYER_AVATAR.coords)
+                reward+=MAZE_REWARD_EXPLORATION
             #coin collection, spawn new coin
             for coin in self.coins:
                 if coin.coords == self.PLAYER_AVATAR.coords:
                     markedForDelete.append(coin)
                     reward+=MAZE_REWARD_PER_COIN
-                    self.food+=self.FOOD_PER_COIN
             #check for loss
             if self.GAME_LENGTH is not None and self.time>=self.GAME_LENGTH:
                 self.terminated = True #end of game because of time out
-            elif self.food<=0:
-                self.truncated = True #end of game because the player died
         #reward = reward
         logits = self.calcLogits()
         info = {}
@@ -343,7 +354,7 @@ class TagEnv(Environment, Observable):
         else:
             self.view = None
     def reset(self, seed:int=None) -> tuple[list[float], int, bool, bool, None]:
-        def genSeekerPosition(self,dist=None):
+        def genSeekerPosition(dist=None):
             dist = self.random.randint(self.seekerMinDistance*self.SCALE,self.seekerMaxDistance*self.SCALE) if dist==None else dist
             x,y = self.RUNNER.rect.center
             angle = self.RUNNER.rotation + math.pi + (self.random.random() * self.SEEKER_SPREAD) - (self.SEEKER_SPREAD/2) #180 degree cone behind runner 
@@ -365,7 +376,7 @@ class TagEnv(Environment, Observable):
         self.truncated = False
         self.time = 0
         self.notify() #redraw
-        return (self.calcLogits(), None) 
+        return (self.calcLogits(), {}) 
     def step(self, action : (0|1|2) = 1) -> tuple[tuple, int, bool, bool, dict]:
         reward = TAG_REWARD_PER_STEP #baseline per step
         if not self.terminated and not self.truncated:
@@ -674,7 +685,7 @@ class TTTEnv (Environment, Observable):
         self.truncated = False
         self.terminated = False
         self.notify() #update view
-        return (self.calcLogits(Team.NOUGHT), None)
+        return (self.calcLogits(Team.NOUGHT), {})
     def step(self, action): #both sides move
         def halfStep(actor : Team, action : int) -> list[list[float], int, bool, bool, None]: #one side moves
             def calcLongestChains(n) -> dict[Team, int]:

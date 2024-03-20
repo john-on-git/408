@@ -139,7 +139,7 @@ class REINFORCEAgent(AbstractPolicyAgent):
             dataset = tf.data.Dataset.from_tensor_slices((
                 observationsThisEpoch,
                 actionsThisEpoch,
-                rewardsThisEpoch,
+                rewardsThisEpoch[:-1],
             ))
             self.fit(dataset) #train on the minibatch
 class REINFORCE_MENTAgent(AbstractPolicyAgent):
@@ -169,10 +169,10 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
             self.epsilon *= self.epsilonDecay #epsilon decay
             #train model
             dataset = tf.data.Dataset.from_tensor_slices((
-                observationsThisEpoch,
+                observationsThisEpoch[:-1],
                 actionsThisEpoch,
                 rewardsThisEpoch,
-                entropies(observationsThisEpoch)
+                entropies(observationsThisEpoch[:-1])
             ))
             self.fit(dataset) #train on the minibatch
 
@@ -198,11 +198,11 @@ class DQNAgent(AbstractQAgent):
         return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         if len(observationsThisEpoch)>1: #if we have a transition to add
-            self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-1]))
+            self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-1], rewardsThisEpoch[-1], observationsThisEpoch[-1]))
             #add the transition
             self.replayMemoryS1s.append(observationsThisEpoch[-2])
-            self.replayMemoryA1s.append(actionsThisEpoch[-2])
-            self.replayMemoryRs.append(rewardsThisEpoch[-2])
+            self.replayMemoryA1s.append(actionsThisEpoch[-1])
+            self.replayMemoryRs.append(rewardsThisEpoch[-1])
             self.replayMemoryS2s.append(observationsThisEpoch[-1])
             if len(self.replayMemoryS1s)>self.replayMemoryCapacity: #if this puts us over capacity remove the oldest transition to put us back under cap
                 self.replayMemoryS1s.pop(0)
@@ -242,8 +242,8 @@ class SARSAAgent(AbstractQAgent):
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         if endOfEpoch:
             self.epsilon *= self.epsilonDecay #epsilon decay
-        if len(observationsThisEpoch)>1: #if we have a transition to add
-            self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-1],actionsThisEpoch[-1]))
+        if len(observationsThisEpoch)>2: #if we have a transition to add
+            self.train_step((observationsThisEpoch[-3], actionsThisEpoch[-2], rewardsThisEpoch[-2], observationsThisEpoch[-2],actionsThisEpoch[-1]))
 
 #From Actor-Critic Algorithms, Konda & Tsitsiklis, NIPS 1999.
 class ActorCriticAgent(AbstractActorCriticAgent):
@@ -294,8 +294,8 @@ class ActorCriticAgent(AbstractActorCriticAgent):
         if len(observationsThisEpoch)>1: #if we have a transition to add
             #add the transition
             self.replayMemoryS1s.append(observationsThisEpoch[-2])
-            self.replayMemoryA1s.append(actionsThisEpoch[-2])
-            self.replayMemoryRs.append(rewardsThisEpoch[-2])
+            self.replayMemoryA1s.append(actionsThisEpoch[-1])
+            self.replayMemoryRs.append(rewardsThisEpoch[-1])
             self.replayMemoryS2s.append(observationsThisEpoch[-1])
             if len(self.replayMemoryS1s)>self.replayMemoryCapacity: #if this puts us over capacity remove the oldest transition to put us back under cap
                 self.replayMemoryS1s.pop(0)
@@ -336,13 +336,19 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
         )
     def train_step(self, data):
         def l():
-            s,p,r,h = data
+            s,a,r,h = data
+            p = tf.nn.softmax(self(s)[0][:-1])[a]
             adv = (r - self(s)[0][-1])
             lA = adv * tf.math.log(p) #characteristic eligibility. apply_gradients inverts the gradient, so it must be inverted here as well
             lC = adv**2
             return -(lA - self.criticWeight*lC + self.entropyWeight*h)
+        s,a,r,h = data
+        p = tf.nn.softmax(self(s)[0][:-1])[a]
+        adv = (r - self(s)[0][-1])
+        lA = adv * tf.math.log(p) #characteristic eligibility. apply_gradients inverts the gradient, so it must be inverted here as well
+        lC = adv**2
         self.optimizer.minimize(l, self.trainable_weights)
-        return {"loss": l()} #TODO
+        return  {"loss": l()} #TODO
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         def entropies(Ss):
             entropies = []
@@ -362,17 +368,17 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
                 discRs[i] = r
             return discRs
         if (len(observationsThisEpoch)%self.tMax==0) or endOfEpoch:
-            m = len(observationsThisEpoch)%(self.tMax) #TODO, wrong?
+            m = len(observationsThisEpoch)%(self.tMax)
             trajectoryLength = self.tMax if m==0 else m
 
-            ssSlice = observationsThisEpoch[-trajectoryLength:]
-            ps = [tf.nn.softmax(self(s)[0][:-1])[a] for s,a in zip(ssSlice, actionsThisEpoch[-trajectoryLength:])]
+            ssSlice = observationsThisEpoch[-trajectoryLength-1:-1]
+            asSlice = actionsThisEpoch[-trajectoryLength:]
             rsSlice = discountedFutureRewards(rewardsThisEpoch[-trajectoryLength:])
             hs = entropies(ssSlice)
 
             dataset = tf.data.Dataset.from_tensor_slices((
                 ssSlice,
-                ps,
+                asSlice,
                 rsSlice,
                 hs
             ))
@@ -428,7 +434,7 @@ class PPOAgent(AbstractActorCriticAgent):
             m = len(observationsThisEpoch)%(self.tMax)
             trajectoryLength = self.tMax if m==0 else m
 
-            s1sSlice = observationsThisEpoch[-trajectoryLength:]
+            s1sSlice = observationsThisEpoch[-trajectoryLength-1:-1]
             actionsSlice = actionsThisEpoch[-trajectoryLength:]
             rsSlice = discountedFutureRewards(rewardsThisEpoch[-trajectoryLength:])
             hs = entropies(s1sSlice)

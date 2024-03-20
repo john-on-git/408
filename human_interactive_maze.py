@@ -2,23 +2,36 @@ from time import sleep
 import pygame
 from environments import MazeEnv
 
-env = MazeEnv(render_mode="human", nCoins=10, gameLength=25)
-
-while not env.terminated and not env.truncated:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            exit()
-        elif event.type == pygame.KEYDOWN:
-            match(event.key):
-                case pygame.K_ESCAPE:
-                    exit()
-                case pygame.K_UP:
-                    env.step(0)
-                case pygame.K_LEFT:
-                    env.step(1)
-                case pygame.K_DOWN:
-                    env.step(2)
-                case pygame.K_RIGHT:
-                    env.step(3)
-    sleep(.1)
-print("Score:", env.score)
+env = MazeEnv(render_mode="human")
+rewardThisEpisode = 0
+totalReward = 0
+nEpisodes = 0
+running = True
+while running:
+    while running and not env.terminated and not env.truncated:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                match(event.key):
+                    case pygame.K_ESCAPE:
+                        running = False
+                    case pygame.K_UP:
+                        _, reward, _, _, _ = env.step(0)
+                        rewardThisEpisode += reward
+                    case pygame.K_LEFT:
+                        _, reward, _, _, _ = env.step(1)
+                        rewardThisEpisode += reward
+                    case pygame.K_DOWN:
+                        _, reward, _, _, _ = env.step(2)
+                        rewardThisEpisode += reward
+                    case pygame.K_RIGHT:
+                        _, reward, _, _, _ = env.step(3)
+                        rewardThisEpisode += reward
+    if running:
+        totalReward+=rewardThisEpisode
+        nEpisodes+=1
+        rewardThisEpisode = 0
+        env.reset()
+print("num episodes:", nEpisodes)
+print("average reward:", 0 if nEpisodes==0 else totalReward/nEpisodes)

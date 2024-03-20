@@ -10,7 +10,7 @@ import os
 
 if __name__ == "__main__":
     RNG_SEED_INIT=0
-    N_TRAINING_EPOCHS = 1000
+    N_EPISODES = 2000
     N_AGENTS = 5
 
     environments: list[Environment]
@@ -19,13 +19,31 @@ if __name__ == "__main__":
         #TTTEnv(),
         #TagEnv(),
     ]
-    metrics = np.ndarray(shape=(len(environments), N_AGENTS, N_TRAINING_EPOCHS, 2))
+    metrics = np.ndarray(shape=(len(environments), N_AGENTS, N_EPISODES, 2))
     for i in range(len(environments)):
         agents: list[Agent]
         agents = [
+            PPOAgent(
+                actionSpace=environments[i].ACTION_SPACE,
+                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
+                validActions=environments[i].validActions,
+                learningRate=.001,
+                discountRate=.9,
+                epsilon=.25,
+                epsilonDecay=.99,
+            ),
+            AdvantageActorCriticAgent(
+                actionSpace=environments[i].ACTION_SPACE,
+                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
+                validActions=environments[i].validActions,
+                learningRate=.001,
+                discountRate=.9,
+                epsilon=.25,
+                epsilonDecay=.99,
+            ),
             ActorCriticAgent(
                 actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.relu)],
+                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
                 validActions=environments[i].validActions,
                 learningRate=.001,
                 discountRate=.9,
@@ -33,28 +51,10 @@ if __name__ == "__main__":
                 epsilonDecay=.99,
                 replayFraction=10
             ),
-            AdvantageActorCriticAgent(
-                actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.relu)],
-                validActions=environments[i].validActions,
-                learningRate=.001,
-                discountRate=.9,
-                epsilon=.25,
-                epsilonDecay=.99,
-            ),
-            PPOAgent(
-                actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.relu)],
-                validActions=environments[i].validActions,
-                learningRate=.001,
-                discountRate=.9,
-                epsilon=.25,
-                epsilonDecay=.99,
-            ),
 
             REINFORCE_MENTAgent(
                 actionSpace=environments[i].ACTION_SPACE,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.relu)],
+                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
                 validActions=environments[i].validActions,
                 learningRate=.001,
                 discountRate=.9,
@@ -69,7 +69,9 @@ if __name__ == "__main__":
                learningRate=.001,
                discountRate=.9,
                epsilon=.5,
-               epsilonDecay=.99
+               epsilonDecay=.99,
+               replayMemoryCapacity=10000,
+               replayFraction=1000
             ),
         ]
         assert len(agents) == N_AGENTS
@@ -78,17 +80,19 @@ if __name__ == "__main__":
 
             rngSeed=RNG_SEED_INIT
             start = time.time()
-            for k in range(N_TRAINING_EPOCHS):
+            for k in range(N_EPISODES):
                 random.seed(rngSeed)
                 tf.random.set_seed(rngSeed)
                 np.random.seed(rngSeed)
                 Ss = []
                 As = []
                 Rs = []
-                Losses = []
+                #Losses = []
                 observation, _ = environments[i].reset(rngSeed)
                 observation = tf.expand_dims(tf.convert_to_tensor(observation), 0)
-                while not (environments[i].terminated or environments[i].truncated): #for each time step in epoch
+                terminated = False
+                truncated = True
+                while not (terminated or truncated): #for each time step in episode
                     Ss.append(observation) #record observation for training
 
                     #prompt agent
@@ -103,12 +107,12 @@ if __name__ == "__main__":
 
 
                     agents[j].handleStep(terminated or truncated, Ss, As, Rs, callbacks=[
-                        #tf.keras.callbacks.LambdaCallback(on_epoch_end=lambda _, logs: Losses.append(logs["loss"])) #for logging loss as a metric (not used atm)
+                        #tf.keras.callbacks.LambdaCallback(on_episode_end=lambda _, logs: Losses.append(logs["loss"])) #for logging loss as a metric (not used atm)
                     ])
-                #epoch finished
+                #episode finished
                 metrics[i][j][k][0] = sum(Rs)
                 metrics[i][j][k][1] = time.time()
-                print("Epoch ", k, " Done (r = ", metrics[i][j][k][0],", ε = ", round(agents[j].epsilon,2), ")", sep="")
+                print("Episode ", k, " Done (r = ", metrics[i][j][k][0],", ε = ", round(agents[j].epsilon,2), ")", sep="")
                 rngSeed+=1
             #finished training this agent
             #write the model weights to file
@@ -125,14 +129,21 @@ if __name__ == "__main__":
         metricsDir + "\\metrics_" + time.strftime("%Y.%m.%d-%H.%M.%S"),
         agents=metadataAgents,
         environments=metadataEnvironments,
-        nEpochs = [N_TRAINING_EPOCHS],
+        nEpisodes = [N_EPISODES],
         data=metrics
     )
 
     def plot(target, yss, i,m, label):
+        match type(environments[i]):
+            case MazeEnv.type:
+                target.axhline(y=571/2, color="grey")
+            case TagEnv.type:
+                target.axhline(y=565/2, color="grey")
+            case TTTEnv.type:
+                target.axhline(y=1000/2, color="lightgrey")
         for j in range(len(agents)):
             ys = []
-            for k in range(N_TRAINING_EPOCHS):
+            for k in range(N_EPISODES):
                 ys.append(yss[i][j][k][m])
 
             x = range(len(ys))
@@ -167,8 +178,8 @@ if __name__ == "__main__":
     
     #n = input("enter number to extend training, non-numeric to end\n")
     #if(n.isnumeric()):
-    #    resetEpochs=epochs
-    #    targetEpochs+=int(n)
+    #    resetEpisodes=episodes
+    #    targetEpisodes+=int(n)
     #else:
     #    trainingRunning = False
     #    environments[i].close()

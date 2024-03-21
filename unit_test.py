@@ -224,7 +224,7 @@ class TestMaze(unittest.TestCase):
         self.assertEqual(env.time, 0)
         self.assertEqual(env.coins, [])
         self.assertEqual(env.visited, [AGENT_POSITION])
-        self.assertEqual(env.PLAYER_AVATAR.coords, AGENT_POSITION)
+        self.assertEqual(env.playerAvatar.coords, AGENT_POSITION)
     def test_validActions(self):
         env = MazeEnv()
         self.assertEqual(env.validActions(None), [0,1,2,3])
@@ -232,9 +232,9 @@ class TestTag(unittest.TestCase):
     def test_logits(self):
         env = TagEnv()
         observation = env.reset()[0]
-        xR, yR = env.RUNNER.getCenter()
-        rR = env.RUNNER.rotation
-        xS, yS = env.SEEKERS[0].getCenter()
+        xR, yR = env.runner.getCenter()
+        rR = env.runner.rotation
+        xS, yS = env.seekers[0].getCenter()
         self.assertEqual(observation, [float(xR),float(yR),rR, float(xS),float(yS)])
 class TestTTTSearchAgent(unittest.TestCase):
     def test_act(self):

@@ -24,10 +24,11 @@ class RandomAgent(Agent):
         pass
 
 class AbstractQAgent(Model, Agent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay, discountRate):
         super().__init__()
         self.epsilon = epsilon
         self.epsilonDecay = epsilonDecay
+        self.discountRate = discountRate
         self.actionSpace = actionSpace
         self.validActions = validActions if validActions is not None else (lambda _: actionSpace) #Callable that returns the valid actions for a state. Defaults to entire action space. That lambda can't be a default value because the definition references actionSpace.
 
@@ -58,8 +59,9 @@ class AbstractQAgent(Model, Agent):
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         pass
 class AbstractPolicyAgent(Model, Agent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay, discountRate):
         super().__init__()
+        self.discountRate = discountRate
         self.epsilon = epsilon
         self.epsilonDecay = epsilonDecay
         self.actionSpace = actionSpace
@@ -92,13 +94,14 @@ class AbstractPolicyAgent(Model, Agent):
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         pass
 class AbstractActorCriticAgent(Model, Agent):
-    def __init__(self, learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, entropyWeight):
+    def __init__(self, learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, criticWeight, entropyWeight):
         super().__init__()
         self.discountRate = discountRate
         self.learningRate = learningRate
         self.actionSpace = actionSpace
         self.epsilon = epsilon
         self.epsilonDecay = epsilonDecay
+        self.criticWeight = criticWeight
         self.entropyWeight = entropyWeight
         self.validActions = validActions if validActions is not None else (lambda _: actionSpace) #Callable that returns the valid actions for a state. Defaults to entire action space.
 
@@ -121,9 +124,8 @@ class AbstractActorCriticAgent(Model, Agent):
 #policy gradient methods
 #from Simple Statistical Gradient-Following Algorithms for Connectionist Reinforcement Learning, Williams, 1992.
 class REINFORCEAgent(AbstractPolicyAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0):
-        super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
-        self.discountRate = discountRate
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0.0):
+        super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay, discountRate)
         self.baseline = baseline
     def train_step(self, data):
         def l():
@@ -143,9 +145,8 @@ class REINFORCEAgent(AbstractPolicyAgent):
             ))
             self.fit(dataset) #train on the minibatch
 class REINFORCE_MENTAgent(AbstractPolicyAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0, entropyWeight=1):
-        super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
-        self.discountRate = discountRate
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0.0, entropyWeight=1):
+        super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay, discountRate)
         self.baseline = baseline
         self.entropyWeight = entropyWeight
     def train_step(self, data):
@@ -180,8 +181,7 @@ class REINFORCE_MENTAgent(AbstractPolicyAgent):
 #Replay method from Playing Atari with Deep Reinforcement Learning, Mnih et al (Algorithm 1).
 class DQNAgent(AbstractQAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, replayMemoryCapacity=1000, replayFraction=5):
-        super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
-        self.discountRate = discountRate
+        super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay, discountRate)
         self.replayMemoryS1s = []
         self.replayMemoryA1s = []   
         self.replayMemoryRs  = []
@@ -229,8 +229,7 @@ class DQNAgent(AbstractQAgent):
 #This is similar to DQN, but learns on-policy.
 class SARSAAgent(AbstractQAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1):
-        super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay)
-        self.discountRate = discountRate
+        super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay, discountRate)
     def train_step(self, data):
         def l(): #from atari paper
             s1,a1,r,s2,a2 = data
@@ -247,8 +246,8 @@ class SARSAAgent(AbstractQAgent):
 
 #From Actor-Critic Algorithms, Konda & Tsitsiklis, NIPS 1999.
 class ActorCriticAgent(AbstractActorCriticAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, replayMemoryCapacity=1000, replayFraction=5, entropyWeight=.1, criticWeight=1):
-        super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, entropyWeight)
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, replayMemoryCapacity=1000, replayFraction=5, entropyWeight=1, criticWeight=1):
+        super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, criticWeight, entropyWeight)
         self.replayMemoryS1s = []
         self.replayMemoryA1s = []
         self.replayMemoryRs  = []
@@ -256,7 +255,6 @@ class ActorCriticAgent(AbstractActorCriticAgent):
         self.replayMemoryA2s = []
         self.replayMemoryCapacity = replayMemoryCapacity
         self.replayFraction = replayFraction
-        self.criticWeight = criticWeight
         #init layers
         self.modelLayers = []
         self.modelLayers.extend(hiddenLayers)
@@ -322,10 +320,9 @@ class ActorCriticAgent(AbstractActorCriticAgent):
                 self.fit(dataset) #train on the minibatch
 #Synchronous verson of A3C, From Asynchronous Methods for Deep Reinforcement Learning.
 class AdvantageActorCriticAgent(AbstractActorCriticAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=1, criticWeight=.5, tMax=1000):
-        super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, entropyWeight)
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=1, criticWeight=1, tMax=1000):
+        super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, criticWeight, entropyWeight)
         self.tMax = tMax
-        self.criticWeight = criticWeight
         #init layers
         self.modelLayers = []
         self.modelLayers.extend(hiddenLayers)
@@ -382,11 +379,10 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
             self.epsilon *= self.epsilonDecay #epsilon decay
 #from Proximal Policy Optimisation (???) TODO
 class PPOAgent(AbstractActorCriticAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=.1, criticWeight=1, tMax=1000, interval=0.2):
-        super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, entropyWeight)
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=1, criticWeight=1, tMax=1000, interval=0.2):
+        super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, criticWeight, entropyWeight)
         self.tMax = tMax
         self.interval = interval
-        self.criticWeight = criticWeight #named c1, in the paper
         self.actorLayers = []
         self.actorLayers.extend(hiddenLayers)
         self.actorLayers.append(layers.Dense(len(actionSpace)+1)) #last output is the state V-value, all others are the action probs

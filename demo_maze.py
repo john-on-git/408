@@ -7,14 +7,10 @@ from keras import layers
 
 env = MazeEnv(render_mode="human", nCoins=10, gameLength=100)
 agent = PPOAgent(
-    actionSpace=env.ACTION_SPACE,
+    actionSpace=env.actionSpace,
     hiddenLayers=[
-        layers.Reshape((6,6,1)),
-        layers.Conv2D(1,2,strides=(1,1), activation=tf.nn.sigmoid),
-        layers.Conv2D(1,2,strides=(1,1), activation=tf.nn.sigmoid),
+        layers.Flatten(),
         layers.Dense(8, activation=tf.nn.sigmoid),
-        layers.Dense(16, activation=tf.nn.sigmoid),
-        layers.Flatten()
     ],
     validActions=env.validActions,
     learningRate=0

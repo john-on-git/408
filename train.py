@@ -9,9 +9,9 @@ import time
 import os
 
 if __name__ == "__main__":
-    RNG_SEED_INIT=0
-    N_EPISODES = 2000
-    N_AGENTS = 1
+    RNG_SEED_INIT = 0 #fixed RNG for replicability.
+    N_EPISODES = 1000 #number of episodes to train for
+    N_AGENTS = 5 #used to init metrics. Must be equal to len(agents). There's probably a better way to do this but I don't want to overcomplicate it.
 
     environments: list[Environment]
     environments = [
@@ -23,17 +23,18 @@ if __name__ == "__main__":
     for i in range(len(environments)):
         agents: list[Agent]
         agents = [
-            # PPOAgent(
-            #     actionSpace=environments[i].ACTION_SPACE,
-            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
-            #     validActions=environments[i].validActions,
-            #     learningRate=.001,
-            #     discountRate=.9,
-            #     epsilon=.25,
-            #     epsilonDecay=.99,
-            # ),
             AdvantageActorCriticAgent(
-                actionSpace=environments[i].ACTION_SPACE,
+                actionSpace=environments[i].actionSpace,
+                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
+                validActions=environments[i].validActions,
+                learningRate=.001,
+                discountRate=.9,
+                epsilon=.25,
+                epsilonDecay=.99,
+                criticWeight=10
+            ),
+            PPOAgent(
+                actionSpace=environments[i].actionSpace,
                 hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
                 validActions=environments[i].validActions,
                 learningRate=.001,
@@ -41,38 +42,38 @@ if __name__ == "__main__":
                 epsilon=.25,
                 epsilonDecay=.99,
             ),
-            # ActorCriticAgent(
-            #     actionSpace=environments[i].ACTION_SPACE,
-            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
-            #     validActions=environments[i].validActions,
-            #     learningRate=.001,
-            #     discountRate=.9,
-            #     epsilon=.25,
-            #     epsilonDecay=.99,
-            #     replayFraction=10
-            # ),
+            ActorCriticAgent(
+                actionSpace=environments[i].actionSpace,
+                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
+                validActions=environments[i].validActions,
+                learningRate=.001,
+                discountRate=.9,
+                epsilon=.25,
+                epsilonDecay=.99,
+                replayFraction=10
+            ),
 
-            # REINFORCE_MENTAgent(
-            #     actionSpace=environments[i].ACTION_SPACE,
-            #     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
-            #     validActions=environments[i].validActions,
-            #     learningRate=.001,
-            #     discountRate=.9,
-            #     epsilon=.5,
-            #     epsilonDecay=.99
-            # ),
+            REINFORCE_MENTAgent(
+                actionSpace=environments[i].actionSpace,
+                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
+                validActions=environments[i].validActions,
+                learningRate=.001,
+                discountRate=.9,
+                epsilon=.5,
+                epsilonDecay=.99
+            ),
 
-            # DQNAgent(
-            #    actionSpace=environments[i].ACTION_SPACE,
-            #    hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
-            #    validActions=environments[i].validActions,
-            #    learningRate=.001,
-            #    discountRate=.9,
-            #    epsilon=.5,
-            #    epsilonDecay=.99,
-            #    replayMemoryCapacity=10000,
-            #    replayFraction=1000
-            # ),
+            DQNAgent(
+               actionSpace=environments[i].actionSpace,
+               hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
+               validActions=environments[i].validActions,
+               learningRate=.001,
+               discountRate=.9,
+               epsilon=.5,
+               epsilonDecay=.99,
+               replayMemoryCapacity=1000,
+               replayFraction=10
+            ),
         ]
         assert len(agents) == N_AGENTS
         for j in range(len(agents)):
@@ -135,12 +136,12 @@ if __name__ == "__main__":
     )
 
     def plot(target, yss, i,m, label):
-        match type(environments[i]):
-            case MazeEnv.type:
+        match type(environments[i]).__name__:
+            case "MazeEnv":
                 target.axhline(y=571/2, color="grey")
-            case TagEnv.type:
+            case "TagEnv":
                 target.axhline(y=565/2, color="grey")
-            case TTTEnv.type:
+            case "TTTEnv":
                 target.axhline(y=1000/2, color="lightgrey")
         for j in range(len(agents)):
             ys = []

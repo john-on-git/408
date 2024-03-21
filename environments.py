@@ -8,20 +8,19 @@ import tensorflow as tf
 from threading import Thread
 
 class Environment(ABC):
-    def __init__(self) -> None:
+    def __init__(self, actionSpace) -> None:
         super().__init__()
-        self.ACTION_SPACE: list
-        self.View: View | None 
-        self.terminated: bool
-        self.truncated: bool
+        self.actionSpace = actionSpace
+        self.terminated = False
+        self.truncated = False
     def close(self) -> None:
         if self.view is not None:
             self.view.close()
             self.view = None
         self.terminated = True
-    @abstractmethod
     def reset(self, seed:int) -> tuple[list[float], dict]:
-        pass
+        self.terminated = False
+        self.truncated = False
     @abstractmethod
     def step(self,a:int) -> tuple[list[float], int, bool, bool, dict]:
         pass
@@ -29,10 +28,14 @@ class Environment(ABC):
     def validActions(self,s) -> list[int]:
         pass
 class View(ABC):
-    def __init__(self) -> None:
+    def __init__(self, resolution) -> None:
         super().__init__()
-        self.running: bool
-        self.thread: Thread
+        self.screen = pygame.display.set_mode(resolution)
+        self.clock = pygame.time.Clock()
+        self.running = False
+        self.drawTargets: list[tuple[pygame.Surface,list]]
+        self.drawTargets = []
+        self.thread: Thread | None
     def open(self):
         self.running = True
         self.thread = Thread(target=self.main, daemon=True)
@@ -53,14 +56,14 @@ class View(ABC):
 class TestBanditEnv(Environment):
     def __init__(self,nMachines:int=2) -> None:
         super().__init__()
-        self.ACTION_SPACE = range(nMachines)
+        self.actionSpace = range(nMachines)
     def reset(self, seed:int=None) -> tuple[list[float], dict]:
         return ([1], {})
     def step(self, a: int) -> tuple[list[float], int, bool, bool, dict]:
         reward = 1 if a==0 else 0
         return ([1], reward, True, False, {})
     def validActions(self, s) -> list[int]:
-        return self.ACTION_SPACE
+        return self.actionSpace
 #Maze
 MAZE_REWARD_PER_COIN = 50
 MAZE_REWARD_EXPLORATION = 1
@@ -87,9 +90,9 @@ class MazeEnv(Environment, Observable):
         gameLength: Max length of game, or None for unlimited length.
         """
         Observable.__init__(self)
+        Environment.__init__(self, [0,1,2,3,4])
         #init constants
-        self.ACTION_SPACE = [0,1,2,3,4]
-        self.SQUARES = squares if squares is not None else [ #TODO should not be hard-coded
+        self.squares = squares if squares is not None else [ #TODO should not be hard-coded
             [MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY],
             [MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY],
             [MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.SOLID, MazeSquare.SOLID, MazeSquare.EMPTY, MazeSquare.EMPTY],
@@ -97,15 +100,15 @@ class MazeEnv(Environment, Observable):
             [MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY],
             [MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY],
         ]
-        self.INITIAL_PLAYER_POSITION = startPosition
-        self.GAME_LENGTH = gameLength
-        self.N_COINS = nCoins
-        self.REWARD_EXPLORATION = rewardExploration
-        self.EMPTY_SQUARES = [] #pre-calculated for placing entities
-        for y in range(len(self.SQUARES)):
-            for x in range(len(self.SQUARES[y])):
-                if self.SQUARES[y][x] == MazeSquare.EMPTY:
-                    self.EMPTY_SQUARES.append((y,x))
+        self.initialPlayerPosition = startPosition
+        self.gameLength = gameLength
+        self.nCoins = nCoins
+        self.rewardExploration = rewardExploration
+        self.emptySquares = [] #pre-calculated for placing entities
+        for y in range(len(self.squares)):
+            for x in range(len(self.squares[y])):
+                if self.squares[y][x] == MazeSquare.EMPTY:
+                    self.emptySquares.append((y,x))
         self.reset()
         if (render_mode=="human"):
             self.view = MazeView(resolution=(500,500), world=self)
@@ -113,23 +116,23 @@ class MazeEnv(Environment, Observable):
             self.view.open()
         else:
             self.view = None
+        self.notify() #update view
     def reset(self, seed:int=None) -> None:
+        Environment.reset(self,seed)
         self.random = Random(seed)
         self.time = 0
-        self.terminated = False
-        self.truncated = False
         self.coins = []
         self.visited = []
-        if self.INITIAL_PLAYER_POSITION=="random":
-            emptySquares = self.EMPTY_SQUARES.copy()
+        if self.initialPlayerPosition=="random":
+            emptySquares = self.emptySquares.copy()
             for xs in [self.coins]:
                 for x in xs:
                     emptySquares.remove(x.coords)
-            self.PLAYER_AVATAR = MazeEntity(coords=self.random.choice(emptySquares))
+            self.playerAvatar = MazeEntity(coords=self.random.choice(emptySquares))
         else:
-            self.PLAYER_AVATAR = MazeEntity(self.INITIAL_PLAYER_POSITION)
-        self.visited.append(self.PLAYER_AVATAR.coords)
-        for _ in range(self.N_COINS): #add coins
+            self.playerAvatar = MazeEntity(self.initialPlayerPosition)
+        self.visited.append(self.playerAvatar.coords)
+        for _ in range(self.nCoins): #add coins
             self.placeCoin()
         self.notify() #update view
         return (self.calcLogits(), {})
@@ -141,31 +144,31 @@ class MazeEnv(Environment, Observable):
             #move player avatar
             match action:
                 case 0:
-                    target = (self.PLAYER_AVATAR.coords[0]-1, self.PLAYER_AVATAR.coords[1]) #up
+                    target = (self.playerAvatar.coords[0]-1, self.playerAvatar.coords[1]) #up
                 case 1:
-                    target = (self.PLAYER_AVATAR.coords[0], self.PLAYER_AVATAR.coords[1]-1) #left
+                    target = (self.playerAvatar.coords[0], self.playerAvatar.coords[1]-1) #left
                 case 2:
-                    target = (self.PLAYER_AVATAR.coords[0]+1, self.PLAYER_AVATAR.coords[1]) #down
+                    target = (self.playerAvatar.coords[0]+1, self.playerAvatar.coords[1]) #down
                 case 3:
-                    target = (self.PLAYER_AVATAR.coords[0], self.PLAYER_AVATAR.coords[1]+1) #right
+                    target = (self.playerAvatar.coords[0], self.playerAvatar.coords[1]+1) #right
                 case 4:
-                    target = self.PLAYER_AVATAR.coords                                      #pass
+                    target = self.playerAvatar.coords                                      #pass
                 case _:
                     raise Exception("Got invalid action "+str(action)+". Expected (0|1|2|3|4).")
             #move the player to the target if possible (it must be an empty square inside the game board)
             y,x = target
-            if x>=0 and y>=0 and y<len(self.SQUARES) and x<len(self.SQUARES[0]) and self.SQUARES[y][x] == MazeSquare.EMPTY:
-                self.PLAYER_AVATAR.coords = target
-            if self.REWARD_EXPLORATION and self.PLAYER_AVATAR.coords not in self.visited:
-                self.visited.append(self.PLAYER_AVATAR.coords)
+            if x>=0 and y>=0 and y<len(self.squares) and x<len(self.squares[0]) and self.squares[y][x] == MazeSquare.EMPTY:
+                self.playerAvatar.coords = target
+            if self.rewardExploration and self.playerAvatar.coords not in self.visited:
+                self.visited.append(self.playerAvatar.coords)
                 reward+=MAZE_REWARD_EXPLORATION
             #coin collection, spawn new coin
             for coin in self.coins:
-                if coin.coords == self.PLAYER_AVATAR.coords:
+                if coin.coords == self.playerAvatar.coords:
                     markedForDelete.append(coin)
                     reward+=MAZE_REWARD_PER_COIN
             #check for loss
-            if self.GAME_LENGTH is not None and self.time>=self.GAME_LENGTH:
+            if self.gameLength is not None and self.time>=self.gameLength:
                 self.terminated = True #end of game because of time out
         #reward = reward
         logits = self.calcLogits()
@@ -174,13 +177,13 @@ class MazeEnv(Environment, Observable):
         for entity in markedForDelete:
             if type(entity) == MazeCoin:
                 self.coins.remove(entity)
-                if len(self.coins)<self.N_COINS: #always true during normal gameplay, added to make this possible to unit test. See what I mean?
+                if len(self.coins)<self.nCoins: #always true during normal gameplay, added to make this possible to unit test. See what I mean?
                     self.placeCoin() #remember to replace it
         self.notify() #update view
         return (logits, reward, self.terminated, self.truncated, info)
     def placeCoin(self) -> None:
-        validForCoin = self.EMPTY_SQUARES.copy() #list of empty squares
-        validForCoin.remove(self.PLAYER_AVATAR.coords) #can't place on player
+        validForCoin = self.emptySquares.copy() #list of empty squares
+        validForCoin.remove(self.playerAvatar.coords) #can't place on player
         for xs in [self.coins]: #or on top of another coin
             for x in xs:
                 validForCoin.remove(x.coords)
@@ -198,59 +201,39 @@ class MazeEnv(Environment, Observable):
         LOGIT_PLAYER = 4.0
         #construct logits from world
         logits = []
-        for y in range(len(self.SQUARES)):
-            logits.append([LOGIT_SOLID] * len(self.SQUARES))
-        for y,x in self.EMPTY_SQUARES:
+        for y in range(len(self.squares)):
+            logits.append([LOGIT_SOLID] * len(self.squares))
+        for y,x in self.emptySquares:
             logits[y][x] = LOGIT_EMPTY
         for coin in self.coins:
             y,x = coin.coords
             logits[y][x] += LOGIT_COIN
-        y,x = self.PLAYER_AVATAR.coords
+        y,x = self.playerAvatar.coords
         logits[y][x] += LOGIT_PLAYER
         return logits
 #view
 class MazeView(View, Observer):
-    def __init__(self, world : MazeEnv, resolution) -> None:
-        super().__init__()
+    def __init__(self, world : MazeEnv, resolution:tuple[int,int]) -> None:
+        View.__init__(self, resolution)
+        Observer.__init__(self)
         pygame.init()
-        displayResolution = resolution
-        self.screen = pygame.display.set_mode(displayResolution)
-        self.xSize = displayResolution[0]/len(world.SQUARES[0]) #horizontal size of squares
-        self.ySize = displayResolution[1]/len(world.SQUARES) #vertical size of squares
-        self.squares = [None, []]
-        self.players = [None, []]
-        self.coins   = [None, []]
-        self.enemies = [None, []]
 
-        #square surface
-        self.squares[0] = pygame.Surface((self.xSize+1,self.ySize+1))
-        self.squares[0].fill(pygame.color.Color(255,255,255))
+        self.xSize = int(resolution[0]/len(world.squares[0])) #horizontal size of squares
+        self.ySize = int(resolution[1]/len(world.squares)) #vertical size of squares
         
-        #player surface
-        self.players[0] = pygame.transform.scale(pygame.image.load("img/greenPerson.png"), (self.xSize, self.ySize)) #TODO transparency doesn't work, probably a file format thing
+        squareSurface = pygame.Surface((self.xSize+1,self.ySize+1))
+        squareSurface.fill(pygame.color.Color(255,255,255))
+        self.drawTargets.extend([
+            (squareSurface, []), #squares
+            (pygame.transform.scale(pygame.image.load("img/greenPerson.png"), (self.xSize, self.ySize)), []), #players
+            (pygame.transform.scale(pygame.image.load("img/coin.png"), (self.xSize, self.ySize)), []) #coins
+        ])
 
-        #coin surface
-        self.coins[0] = pygame.transform.scale(pygame.image.load("img/coin.png"), (self.xSize, self.ySize)) #TODO transparency doesn't work, probably a file format thing
-        
         #create squares
-        for y in range(len(world.SQUARES)):
-            for x in range(len(world.SQUARES[y])):
-                if(world.SQUARES[y][x] == MazeSquare.EMPTY):
-                    self.squares[1].append((x*self.xSize, y*self.ySize))
-
-        #get player location
-        self.players[1].clear()
-        self.players[1].append((world.PLAYER_AVATAR.coords[1]*self.xSize, world.PLAYER_AVATAR.coords[0]*self.ySize))
-        
-        #get coin locations
-        self.coins[1].clear()
-        for viewModel, entities in [(self.coins, world.coins)]:
-            for entity in entities:
-                y,x = entity.coords
-                viewModel[1].append((x*self.xSize, y*self.ySize))
-
-        self.clock = pygame.time.Clock()
-        self.running = False
+        for y in range(len(world.squares)):
+            for x in range(len(world.squares[y])):
+                if(world.squares[y][x] == MazeSquare.EMPTY):
+                    self.drawTargets[0][1].append((x*self.xSize, y*self.ySize))
     def main(self):
         while self.running:
             #template from https://www.pygame.org/docs/
@@ -258,25 +241,20 @@ class MazeView(View, Observer):
             self.screen.fill(pygame.color.Color(70,70,70))
 
             #draw surfaces
-            #for (thing, desc) in [(self.squares, "square"), (self.players, "player"), (self.coins, "coin"), (self.enemies, "enemy")]:
-            for thing in [self.squares, self.coins, self.players, self.enemies]: #this controls the layer order
-                for position in thing[1]:
-                    #print("blitting ", desc, " @ ", position, sep='')
-                    self.screen.blit(thing[0], position)
+            for surface, xs in self.drawTargets: #this controls the layer order
+                for x in xs:
+                    self.screen.blit(surface, x)
             
             # flip() the display to put your work on screen
             pygame.display.flip()
         exit()
     def update(self, world):
         if type(world) is MazeEnv:
-            self.players[1].clear()
-            self.players[1].append((world.PLAYER_AVATAR.coords[1]*self.xSize, world.PLAYER_AVATAR.coords[0]*self.ySize))
-            
-            self.coins[1].clear()
-            for viewModel, entities in [(self.coins, world.coins)]:
+            for viewModel, entities in [(self.drawTargets[1][1], [world.playerAvatar]), (self.drawTargets[2][1], world.coins)]:
+                viewModel.clear()
                 for entity in entities:
                     y,x = entity.coords
-                    viewModel[1].append((x*self.xSize, y*self.ySize))
+                    viewModel.append((x*self.xSize, y*self.ySize))
 
 
 
@@ -320,30 +298,29 @@ class TagEnv(Environment, Observable):
         """
         
         Observable.__init__(self)
+        Environment.__init__(self, [0,1,2])
         #init constants
-        self.ACTION_SPACE = [0,1,2]
-        self.SCALE = 10
-        self.MAX_TIME = maxTime
+        self.scale = 10.0
+        self.maxTime = maxTime
         RUNNER_SPEED = 5
         RUNNER_ROTATION_RATE = math.pi/30
         #load hitbox masks
-        RUNNER_HITBOX_FACTORY       = pygame.transform.scale_by(pygame.image.load("img/runner.png"), self.SCALE).get_rect
-        self.SEEKER_HITBOX_FACTORY  = pygame.transform.scale_by(pygame.image.load("img/seeker.png"), self.SCALE).get_rect
+        RUNNER_HITBOX_FACTORY       = pygame.transform.scale_by(pygame.image.load("img/runner.png"), self.scale).get_rect
+        self.seekerHitboxFactory  = pygame.transform.scale_by(pygame.image.load("img/seeker.png"), self.scale).get_rect
 
         arenaX, arenaY = arenaDimensions
         self.seekerMinDistance, self.seekerMaxDistance = seekerMinmaxDistance
         #parameters to reset to when RaceModel.reset() is called
-        self.RUNNER_INITIAL_POSITION = (arenaX/2 * self.SCALE, arenaY/2 * self.SCALE)
-        self.RUNNER_INITIAL_ROTATION = (lambda: self.random.random()*2*math.pi)
-        self.N_SEEKERS = nSeekers
-        self.SEEKER_SPEED = RUNNER_SPEED * speedRatio
-        self.SEEKER_SPREAD = math.radians(seekerSpread)
+        self.runnerInitialPosition = (int(arenaX/2 * self.scale), int(arenaY/2 * self.scale))
+        self.runnerInitialRotation = (lambda: self.random.random()*2*math.pi)
+        self.nSeekers = nSeekers
+        self.seekerSpeed = RUNNER_SPEED * speedRatio
+        self.seekerSpread = math.radians(seekerSpread)
 
         #init entities
-        self.ARENA = Entity(pygame.Rect(0,0,arenaX*self.SCALE,arenaY*self.SCALE), 0) #game ends if agent is not in contact with this rect
-        self.RUNNER = Mover(rect=RUNNER_HITBOX_FACTORY(), rotation=0, speed=RUNNER_SPEED * self.SCALE, rotationRate=RUNNER_ROTATION_RATE)
-        self.RUNNERS = [self.RUNNER]
-        self.SEEKERS = []
+        self.arena = Entity(pygame.Rect(0,0,arenaX*self.scale,arenaY*self.scale), 0) #game ends if agent is not in contact with this rect
+        self.runner = Mover(rect=RUNNER_HITBOX_FACTORY(), rotation=0, speed=RUNNER_SPEED * self.scale, rotationRate=RUNNER_ROTATION_RATE)
+        self.seekers = []
 
         self.reset(None)
         
@@ -356,25 +333,23 @@ class TagEnv(Environment, Observable):
             self.view = None
     def reset(self, seed:int=None) -> tuple[list[float], int, bool, bool, None]:
         def genSeekerPosition(dist=None):
-            dist = self.random.randint(self.seekerMinDistance*self.SCALE,self.seekerMaxDistance*self.SCALE) if dist==None else dist
-            x,y = self.RUNNER.rect.center
-            angle = self.RUNNER.rotation + math.pi + (self.random.random() * self.SEEKER_SPREAD) - (self.SEEKER_SPREAD/2) #180 degree cone behind runner 
+            dist = self.random.randint(self.seekerMinDistance*self.scale,self.seekerMaxDistance*self.scale) if dist==None else dist
+            x,y = self.runner.rect.center
+            angle = self.runner.rotation + math.pi + (self.random.random() * self.seekerSpread) - (self.seekerSpread/2) #180 degree cone behind runner 
             x += math.cos(angle)*dist
             y += math.sin(angle)*dist
             return (x,y)
+        Environment.reset(self,seed)
         self.random = Random(seed)
-        self.RUNNER.rect.center = self.RUNNER_INITIAL_POSITION
-        self.RUNNER.rotation = self.RUNNER_INITIAL_ROTATION()
+        self.runner.rect.center = self.runnerInitialPosition
+        self.runner.rotation = self.runnerInitialRotation()
 
         #reset seekers
-        self.SEEKERS.clear()
-        for _ in range(self.N_SEEKERS):
-            seeker = Mover(rect=self.SEEKER_HITBOX_FACTORY(), rotation=0, speed=self.SEEKER_SPEED * self.SCALE)
+        self.seekers.clear()
+        for _ in range(self.nSeekers):
+            seeker = Mover(rect=self.seekerHitboxFactory(), rotation=0, speed=self.seekerSpeed * self.scale)
             seeker.rect.center = genSeekerPosition()
-            self.SEEKERS.append(seeker)
-
-        self.terminated = False
-        self.truncated = False
+            self.seekers.append(seeker)
         self.time = 0
         self.notify() #redraw
         return (self.calcLogits(), {}) 
@@ -385,80 +360,76 @@ class TagEnv(Environment, Observable):
             #update the runner's angle according to the action
             match action:
                 case 0: #turn left
-                    self.RUNNER.left()
+                    self.runner.left()
                 case 1: #no action
                     pass
                 case 2: #turn right
-                    self.RUNNER.right()
+                    self.runner.right()
                 case _:
                     raise ValueError() if type(action) is int else TypeError()
             #update the runner's position
-            self.RUNNER.advance()
+            self.runner.advance()
             #update the seekers' angles & positions
-            for seeker in self.SEEKERS:
-                dx = self.RUNNER.rect.center[0] - seeker.rect.center[0]
-                dy = self.RUNNER.rect.center[1] - seeker.rect.center[1]
+            for seeker in self.seekers:
+                dx = self.runner.rect.center[0] - seeker.rect.center[0]
+                dy = self.runner.rect.center[1] - seeker.rect.center[1]
                 seeker.rotation = math.atan2(dy, dx)
                 seeker.advance()
                 
-            if (self.RUNNER.rect.collidelist([seeker.rect for seeker in self.SEEKERS]) != -1) or (not self.RUNNER.rect.colliderect(self.ARENA)): #check for collisions
+            if (self.runner.rect.collidelist([seeker.rect for seeker in self.seekers]) != -1) or (not self.runner.rect.colliderect(self.arena)): #check for collisions
                 self.truncated = True
-            elif self.time==self.MAX_TIME: #and time out
+            elif self.time==self.maxTime: #and time out
                 self.terminated = True
         logits = self.calcLogits()
         info = {}
         self.notify() #update view
         return (logits, reward, self.terminated, self.truncated, info)
     def validActions(self,s):
-        return self.ACTION_SPACE
+        return self.actionSpace
     def notify(self) -> None:
         observer: Observer
         for observer in super().getObservers():
             observer.update(self)
     def calcLogits(self) -> list[float]:
-        x = [float(self.RUNNER.rect.center[0]), float(self.RUNNER.rect.center[1]), self.RUNNER.rotation]
-        for seeker in self.SEEKERS:
+        x = [float(self.runner.rect.center[0]), float(self.runner.rect.center[1]), self.runner.rotation]
+        for seeker in self.seekers:
             x.extend([float(seeker.rect.center[0]), float(seeker.rect.center[1])])
         return x
 #view
 class TagView(View, Observer):
     def __init__(self, model : TagEnv, resolution) -> None:
-        super().__init__()
-        self.BG_COLOR = pygame.color.Color(126,126,126)
+        View.__init__(self, resolution)
+        Observer.__init__(self)
         pygame.init()
-        displayResolution = resolution
-        self.screen = pygame.display.set_mode(displayResolution)
         
-        #TODO
-        self.scale = 1/model.SCALE
+        self.bgColor = pygame.color.Color(126,126,126)
+        self.scale = 1/model.scale
 
         #load images
         runnerSurface = pygame.image.load("img/runner.png")
         seekerSurface = pygame.image.load("img/seeker.png")
-        arenaSurface  = pygame.Surface(pygame.Vector2(model.ARENA.rect.size) * self.scale)
+        arenaSurface  = pygame.Surface(pygame.Vector2(model.arena.rect.size) * self.scale)
         arenaSurface.fill((255,255,255))
 
         #init drawing data structures
-        self.cameraPos = model.RUNNER.getCenter
-        self.centerPos = pygame.Vector2(resolution[0]/2, resolution[1]/2)
+        self.getCameraPos = model.runner.getCenter
+        self.centerPos = (int(resolution[0]/2), int(resolution[1]/2)) #pygame.Vector2(resolution[0]/2, resolution[1]/2)
 
-        self.runners = []
-        self.seekers = []
-        self.arenas = [model.ARENA]
-        self.drawTargets = [(arenaSurface, self.arenas),(seekerSurface, self.seekers), (runnerSurface, self.runners)] #order controls the layering
-        
-        self.clock = pygame.time.Clock()
-        self.running = False
+        self.drawTargets.extend([
+            (arenaSurface, [model.arena]),
+            (seekerSurface, []),
+            (runnerSurface, [])
+        ]) #order controls the layering
     def main(self):
         while self.running:
             #template from https://www.pygame.org/docs/
             # fill the screen with a color to wipe away anything from last frame
-            self.screen.fill(self.BG_COLOR)
+            self.screen.fill(self.bgColor)
             #draw everything
             for surface, entities in self.drawTargets:
                 for entity in entities:
                     center = pygame.math.Vector2(entity.getCenter()) * self.scale #screen space position of object
-                    cameraPos = pygame.math.Vector2(self.cameraPos()) * self.scale #adjust relative to camera
+                    cameraPos = pygame.math.Vector2(self.getCameraPos()) * self.scale #adjust relative to camera
 
                     rotatedSurface = pygame.transform.rotate(surface, -math.degrees(entity.rotation))
                     surfaceRect = rotatedSurface.get_rect()
@@ -472,17 +443,15 @@ class TagView(View, Observer):
         exit()
     def update(self, world):
         if type(world) is TagEnv:
-            for _, xs in self.drawTargets:
-                xs.clear()
-            for runner in world.RUNNERS:
-                self.runners.append(runner)
-            for seeker in world.SEEKERS:
-                self.seekers.append(seeker)
-            self.arenas.append(world.ARENA)
+            self.drawTargets[1][1].clear()
+            self.drawTargets[1][1].extend(world.seekers)
+            
+            self.drawTargets[2][1].clear()
+            self.drawTargets[2][1].append(world.runner)
 
 
 
-#Tic-Tac-Toe
+#Tic-Tac-Toe LOCKED DOWN! No touching.
 TTT_REWARD_PARTIAL_CHAIN = 2
 TTT_REWARD_WIN = 10
 TTT_REWARD_PER_STEP = 1
@@ -661,25 +630,25 @@ class TTTEnv (Environment, Observable):
         """
         
         Observable.__init__(self)
-        self.OPPONENT = opponent
-        self.SIZE = size
-        self.OPPONENT = opponent
-        self.ACTION_SPACE = range(self.SIZE**2)
-        self.terminated = False
-        self.truncated = False
+        Environment.__init__(self, range(size**2))
+        self.opponent = opponent
+        self.size = size
+        self.opponent = opponent
         self.board = []
-        for i in range(self.SIZE):
+        for i in range(self.size):
             self.board.append([])
-            for _ in range(self.SIZE):
+            for _ in range(self.size):
                 self.board[i].append(Team.EMPTY)
         if (render_mode=="human"):
             self.view = TTTView(resolution=(600,600), model=self)
+            self.addObserver(self.view)
             self.view.open()
         else:
             self.view = None
     def reset(self, seed=None) -> None:
+        Environment.reset(self,seed)
         self.random = Random(seed)
-        self.OPPONENT.random = self.random
+        self.opponent.random = self.random
         for i in range(len(self.board)):
             for j in range(len(self.board[i])):
                 self.board[i][j] = Team.EMPTY
@@ -757,14 +726,14 @@ class TTTEnv (Environment, Observable):
 
                 return longestChains
             reward = 0
-            actX = action%self.SIZE
-            actY = int(action/self.SIZE)
+            actX = action%self.size
+            actY = int(action/self.size)
             if not self.terminated and not self.truncated:
                 if self.board[actY][actX] == Team.EMPTY: #enact the move if it's valid
                     self.board[actY][actX] = actor
-                    longestChains = calcLongestChains(self.SIZE)
-                    if longestChains[actor]==self.SIZE: #end the game if there's a winner
-                        reward = TTT_REWARD_WIN**self.SIZE #distribute reward for the win
+                    longestChains = calcLongestChains(self.size)
+                    if longestChains[actor]==self.size: #end the game if there's a winner
+                        reward = TTT_REWARD_WIN**self.size #distribute reward for the win
                         self.truncated = True
                     else:
                         #end the game as a draw if all cells are full
@@ -781,8 +750,8 @@ class TTTEnv (Environment, Observable):
             return (reward, self.terminated, self.truncated)
         rew, terminated, truncated = halfStep(Team.NOUGHT, action) #handle player action
         if not (terminated or truncated):
-            opponentAction = self.OPPONENT.act(tf.expand_dims(tf.convert_to_tensor(self.calcLogits(Team.CROSS)),0))
-            if self.board[int(opponentAction/self.SIZE)][opponentAction%self.SIZE] == Team.EMPTY: #enact move if valid
+            opponentAction = self.opponent.act(tf.expand_dims(tf.convert_to_tensor(self.calcLogits(Team.CROSS)),0))
+            if self.board[int(opponentAction/self.size)][opponentAction%self.size] == Team.EMPTY: #enact move if valid
                 _, terminated, truncated = halfStep(Team.CROSS, opponentAction) #handle CPU action
                 return (self.calcLogits(Team.NOUGHT), rew, terminated, truncated, {})
             else:
@@ -792,7 +761,7 @@ class TTTEnv (Environment, Observable):
             return (self.calcLogits(Team.NOUGHT), rew, terminated, truncated, {}) #last move of the game
     def validActions(self,s):
         valid = []
-        for action in self.ACTION_SPACE:
+        for action in self.actionSpace:
             if s[0][action] == 0.0:
                 valid.append(action)
         return valid
@@ -816,44 +785,37 @@ class TTTEnv (Environment, Observable):
 #view
 class TTTView(View, Observer):
     def __init__(self, resolution, model : TTTEnv) -> None:
-        super().__init__()
+        View.__init__(self, resolution)
+        Observer.__init__(self)
         pygame.init()
-        model.addObserver(self)
-        displayResolution = resolution
-        self.screen = pygame.display.set_mode(displayResolution)
-        self.xSize = displayResolution[0]/model.SIZE #horizontal size of board
-        self.ySize = displayResolution[1]/model.SIZE #vertical size of board
-        self.noughts = [None, []]
-        self.crosses = [None, []]
 
-        #nought surface
-        self.noughts[0] = pygame.transform.scale(pygame.image.load("img/nought.png"), (self.xSize+1, self.ySize+1)) #TODO transparency doesn't work, probably a file format thing
+        self.xSize = int(resolution[0]/model.size) #horizontal size of board
+        self.ySize = int(resolution[1]/model.size) #vertical size of board
 
-        #cross surface
-        self.crosses[0] = pygame.transform.scale(pygame.image.load("img/cross.png"), (self.xSize+1, self.ySize+1)) #TODO transparency doesn't work, probably a file format thing
-
-        self.clock = pygame.time.Clock()
-        self.running = False
+        self.drawTargets.extend([
+            (pygame.transform.scale(pygame.image.load("img/nought.png"), (self.xSize+1, self.ySize+1)), []), #noughts
+            (pygame.transform.scale(pygame.image.load("img/cross.png"), (self.xSize+1, self.ySize+1)), []) #crosses
+        ])
     def main(self):
         while self.running:
             # fill the screen with a color to wipe away anything from last frame
             self.screen.fill(pygame.color.Color(255,255,255))
 
             #draw surfaces
-            for thing in [self.noughts, self.crosses]: #this controls the layer order
-                for position in thing[1]:
-                    self.screen.blit(thing[0], position)
+            for surface, xs in self.drawTargets: #this controls the layer order
+                for x in xs:
+                    self.screen.blit(surface, x)
             
             # flip() the display to put your work on screen
             pygame.display.flip()
         exit()
     def update(self, model:Environment):
-        self.noughts[1].clear()
-        self.crosses[1].clear()
-        for x in range(model.SIZE):
-            for y in range(model.SIZE):
+        self.drawTargets[0][1].clear()
+        self.drawTargets[1][1].clear()
+        for x in range(model.size):
+            for y in range(model.size):
                 match model.board[y][x]:
                     case Team.NOUGHT:
-                        self.noughts[1].append((x*self.xSize, y*self.ySize))
+                        self.drawTargets[0][1].append((x*self.xSize, y*self.ySize))
                     case Team.CROSS:
-                        self.crosses[1].append((x*self.xSize, y*self.ySize))
+                        self.drawTargets[1][1].append((x*self.xSize, y*self.ySize))

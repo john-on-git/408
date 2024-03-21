@@ -24,14 +24,14 @@ while True:
                 x=int(x/env.view.xSize)
                 y=int(y/env.view.ySize)
                 #grid coord to action
-                action = x + y*env.SIZE
+                action = x + y*env.size
                 if env.board[y][x] == Team.EMPTY:
                     _, reward, terminated, truncated, _ = env.step(action) #take action
                 else:
                     print("Invalid move.")
     sleep(.1)
     if terminated or truncated:
-        if truncated and reward>=(10**env.SIZE):
+        if truncated and reward>=(10**env.size):
             print("You Won!")
         elif truncated:
             print("You Lost. ):")

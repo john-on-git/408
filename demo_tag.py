@@ -7,7 +7,7 @@ import pygame
 
 env = TagEnv(render_mode="human")
 agent = AdvantageActorCriticAgent(
-    actionSpace=env.ACTION_SPACE,
+    actionSpace=env.actionSpace,
     hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)],
     validActions=env.validActions,
     learningRate=0

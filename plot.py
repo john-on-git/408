@@ -2,10 +2,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-npz = np.load("metrics/metrics_ttt_1000_episodes_19.3.24_UNUSABLE_DUE_TUE__A1C_AND_A2C_ERROR.npz")
+npz = np.load("metrics/metrics_TTT_1000_episodes.20.3.24.npz")
 environments = npz["environments"]
 agents = npz["agents"]
-nEpochs = npz["nEpochs"][0]
+nEpisodes = npz["nEpisodes"][0]
 metrics = npz["data"]
 
 def plot(target, yss, i,m, label):
@@ -19,7 +19,7 @@ def plot(target, yss, i,m, label):
             target.axhline(y=1000/2, color="lightgrey")
     for j in range(len(agents)):
         ys = []
-        for k in range(nEpochs):
+        for k in range(nEpisodes):
             ys.append(yss[i][j][k][m])
             
         x = range(len(ys))

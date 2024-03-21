@@ -1,12 +1,16 @@
-- Running train.py will train agents.
+- The agents/algorithms are defined in agents.py, environment code is in environments.py.
+- Remember to install the requirements (pip install -r requirements.txt).
+
+- Running train.py will train new agents.
+    - This typically takes a very long time.
     - The final weights of the agents are written to disk in /checkpoints
-    - Training metrics are written to disk in /metrics.
-    
-    - The training duration can be adjusted by changing the value of TRAINING_TIME_SECONDS.
-    - For the paper, an RNG_SEED_INIT value of TODO was used. Using a different value will probably fail to replicate the results. 
-- The files in /human_interactive can be used to play the games directly.
-    - Maze: Move using the arrow keys.
-    - Tag: Turn using left & right arrow keys.
+    - Training metrics are written to disk in /metrics. Re-plot a metrics file using plot.py (change the file path on line 5).
+    - Ensure that the constants are set correctly.
+- File beginning with demo_ can be used to observe the AI agents playing the game directly.
+    - Instantiate the correct agent type & layer structure.
+    - The pre-trained agent weights use: hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)] //TODO if you're reading this I forgot to include them/update this part
+    - Ensure that the correct weight file is loaded (change the file path).
+- Files beginning with human_interactive can be used to play the games directly.
+    - Maze: Move using the arrow keys. Collect as many coins as possible.
+    - Tag: Turn using left & right arrow keys. Try to avoid the red blob as long as possible.
     - Tic-Tac-Toe: Click a cell to place your symbol.
-- The agents and algorithms are defined in agents.py, environment code is in environments.py.
-- Remember to install the requirements (from requirements.txt).

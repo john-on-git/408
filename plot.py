@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-npz = np.load("metrics/metrics_TTT_1000_episodes.20.3.24.npz")
+npz = np.load("metrics/final/metrics_TTT_1000_episodes.20.3.24.npz")
 environments = npz["environments"]
 agents = npz["agents"]
 nEpisodes = npz["nEpisodes"][0]
@@ -47,4 +47,7 @@ if len(environments) == 1: #axs is a list, unless the first dimension would be l
 else:
     for i in range(len(environments)):
         plot(axs[i], metrics, i,0, "reward")
-plt.show()
+plt.xlabel("Number of Episodes")
+plt.ylabel("Reward (smoothed)")
+plt.savefig('img/maze_1000.png')
+#plt.show()

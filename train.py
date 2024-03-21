@@ -23,6 +23,17 @@ if __name__ == "__main__":
     for i in range(len(environments)):
         agents: list[Agent]
         agents = [
+            DQNAgent(
+               actionSpace=environments[i].actionSpace,
+               hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
+               validActions=environments[i].validActions,
+               learningRate=.001,
+               discountRate=.9,
+               epsilon=.5,
+               epsilonDecay=.99,
+               replayMemoryCapacity=1000,
+               replayFraction=10
+            ),
             AdvantageActorCriticAgent(
                 actionSpace=environments[i].actionSpace,
                 hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
@@ -61,18 +72,6 @@ if __name__ == "__main__":
                 discountRate=.9,
                 epsilon=.5,
                 epsilonDecay=.99
-            ),
-
-            DQNAgent(
-               actionSpace=environments[i].actionSpace,
-               hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
-               validActions=environments[i].validActions,
-               learningRate=.001,
-               discountRate=.9,
-               epsilon=.5,
-               epsilonDecay=.99,
-               replayMemoryCapacity=1000,
-               replayFraction=10
             ),
         ]
         assert len(agents) == N_AGENTS

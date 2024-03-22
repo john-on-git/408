@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-npz = np.load("metrics/metrics_2024.03.22-07.37.11.npz")
+npz = np.load("metrics/metrics_2024.03.22-08.44.30.npz")
 environments = npz["environments"]
 agents = npz["agents"]
 nEpisodes = npz["nEpisodes"][0]

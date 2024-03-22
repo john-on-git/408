@@ -5,14 +5,15 @@ from keras import layers
 import matplotlib.pyplot as plt
 from environments import Environment, MazeEnv, TagEnv, TTTEnv
 from agents import *
-import time
+import datetime
 import os
 
 if __name__ == "__main__":
     RNG_SEED_INIT = 0 #fixed RNG for replicability.
-    N_EPISODES = 1000 #number of episodes to train for
+    N_EPISODES = 0 #number of episodes to train for
     N_AGENTS = 1 #used to init metrics. Must be equal to len(agents). There's probably a better way to do this but I don't want to overcomplicate it.
 
+    startDatetime = datetime.datetime.now()
     environments: list[Environment]
     environments = [
         MazeEnv(),
@@ -58,6 +59,7 @@ if __name__ == "__main__":
                 discountRate=.9,
                 epsilon=.25,
                 epsilonDecay=.99,
+                criticWeight=5
             ),
             # ActorCriticAgent(
             #     actionSpace=environments[i].actionSpace,
@@ -85,7 +87,6 @@ if __name__ == "__main__":
             print("Training new", type(environments[i]).__name__,"/",type(agents[j]).__name__)
 
             rngSeed=RNG_SEED_INIT
-            start = time.time()
             for k in range(N_EPISODES):
                 random.seed(rngSeed)
                 tf.random.set_seed(rngSeed)
@@ -118,7 +119,7 @@ if __name__ == "__main__":
                     ])
                 #episode finished
                 metrics[i][j][k][0] = sum(Rs)
-                metrics[i][j][k][1] = time.time()
+                metrics[i][j][k][1] = datetime.datetime.now().timestamp()
                 print("Episode ", k, " Done (r = ", metrics[i][j][k][0],", ε = ", round(agents[j].epsilon,2), ")", sep="")
                 rngSeed+=1
             #finished training this agent
@@ -133,7 +134,7 @@ if __name__ == "__main__":
     metadataAgents = [type(x).__name__ for x in agents]
     metadataEnvironments = [type(x).__name__ for x in environments]
     np.savez(
-        metricsDir + "\\metrics_" + time.strftime("%Y.%m.%d-%H.%M.%S"),
+        metricsDir + "\\metrics_" + datetime.datetime.now().strftime("%Y.%m.%d-%H.%M.%S"),
         agents=metadataAgents,
         environments=metadataEnvironments,
         nEpisodes = [N_EPISODES],
@@ -178,9 +179,11 @@ if __name__ == "__main__":
     else:
         for i in range(len(environments)):
             plot(axs[i], metrics, i,0, "reward")
+
+    print("Finished training after", datetime.datetime.now().__sub__(startDatetime))
     plt.show()
 
-    input("press any key to continue") #because 6pyplot fails to show sometimes
+    input("press any key to continue") #because pyplot fails to show sometimes
     #prompt to continue training
     
     #n = input("enter number to extend training, non-numeric to end\n")

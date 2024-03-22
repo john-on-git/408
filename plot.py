@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-npz = np.load("metrics/final/metrics_TTT_1000_episodes.20.3.24.npz")
+npz = np.load("metrics/metrics_2024.03.22-07.37.11.npz")
 environments = npz["environments"]
 agents = npz["agents"]
 nEpisodes = npz["nEpisodes"][0]
@@ -49,5 +49,5 @@ else:
         plot(axs[i], metrics, i,0, "reward")
 plt.xlabel("Number of Episodes")
 plt.ylabel("Reward (smoothed)")
-plt.savefig('img/maze_1000.png')
-#plt.show()
+#plt.savefig('img/maze_1000.png')
+plt.show()

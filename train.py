@@ -11,7 +11,7 @@ import os
 if __name__ == "__main__":
     RNG_SEED_INIT = 0 #fixed RNG for replicability.
     N_EPISODES = 1000 #number of episodes to train for
-    N_AGENTS = 5 #used to init metrics. Must be equal to len(agents). There's probably a better way to do this but I don't want to overcomplicate it.
+    N_AGENTS = 1 #used to init metrics. Must be equal to len(agents). There's probably a better way to do this but I don't want to overcomplicate it.
 
     environments: list[Environment]
     environments = [
@@ -23,56 +23,62 @@ if __name__ == "__main__":
     for i in range(len(environments)):
         agents: list[Agent]
         agents = [
-            DQNAgent(
-               actionSpace=environments[i].actionSpace,
-               hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
-               validActions=environments[i].validActions,
-               learningRate=.001,
-               discountRate=.9,
-               epsilon=.5,
-               epsilonDecay=.99,
-               replayMemoryCapacity=1000,
-               replayFraction=10
-            ),
-            AdvantageActorCriticAgent(
-                actionSpace=environments[i].actionSpace,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
-                validActions=environments[i].validActions,
-                learningRate=.001,
-                discountRate=.9,
-                epsilon=.25,
-                epsilonDecay=.99,
-                criticWeight=10
-            ),
+            # DQNAgent(
+            #     actionSpace=environments[i].actionSpace,
+            #     hiddenLayers=[
+            #         layers.Flatten(),
+            #         layers.Dense(8, activation=tf.nn.sigmoid)
+            #     ],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.9,
+            #     epsilon=.5,
+            #     epsilonDecay=.99,
+            #     replayMemoryCapacity=1000,
+            #     replayFraction=10
+            # ),
+            # AdvantageActorCriticAgent(
+            #     actionSpace=environments[i].actionSpace,
+            #     hiddenLayers=[layers.Dense(16, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.9,
+            #     epsilon=.25,
+            #     epsilonDecay=.99,
+            #     criticWeight=10
+            # ),
             PPOAgent(
                 actionSpace=environments[i].actionSpace,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
+                hiddenLayers=[
+                   layers.Flatten(),
+                   layers.Dense(16, activation=tf.nn.sigmoid)
+                ],
                 validActions=environments[i].validActions,
-                learningRate=.001,
+                learningRate=.0001,
                 discountRate=.9,
                 epsilon=.25,
                 epsilonDecay=.99,
             ),
-            ActorCriticAgent(
-                actionSpace=environments[i].actionSpace,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
-                validActions=environments[i].validActions,
-                learningRate=.001,
-                discountRate=.9,
-                epsilon=.25,
-                epsilonDecay=.99,
-                replayFraction=10
-            ),
+            # ActorCriticAgent(
+            #     actionSpace=environments[i].actionSpace,
+            #     hiddenLayers=[layers.Dense(16, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.9,
+            #     epsilon=.25,
+            #     epsilonDecay=.99,
+            #     replayFraction=10
+            # ),
 
-            REINFORCE_MENTAgent(
-                actionSpace=environments[i].actionSpace,
-                hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
-                validActions=environments[i].validActions,
-                learningRate=.001,
-                discountRate=.9,
-                epsilon=.5,
-                epsilonDecay=.99
-            ),
+            # REINFORCE_MENTAgent(
+            #     actionSpace=environments[i].actionSpace,
+            #     hiddenLayers=[layers.Dense(16, activation=tf.nn.sigmoid)],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.001,
+            #     discountRate=.9,
+            #     epsilon=.5,
+            #     epsilonDecay=.99
+            # ),
         ]
         assert len(agents) == N_AGENTS
         for j in range(len(agents)):
@@ -152,7 +158,7 @@ if __name__ == "__main__":
             #smooth the curve
             smoothedYs = []
             window = []
-            windowSize = 5 #max(len(ys)/200, 1)
+            windowSize = 100 #max(len(ys)/200, 1)
             for y in ys:
                 window.append(y)
                 if len(window)>windowSize:

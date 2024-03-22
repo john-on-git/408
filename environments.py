@@ -65,8 +65,9 @@ class TestBanditEnv(Environment):
     def validActions(self, s) -> list[int]:
         return self.actionSpace
 #Maze
-MAZE_REWARD_PER_COIN = 50
-MAZE_REWARD_EXPLORATION = 1
+MAZE_REWARD_PER_COIN = 500
+MAZE_REWARD_COIN_DIST = 1
+MAZE_REWARD_EXPLORATION = 10
 
 #models
 class MazeSquare(Enum):
@@ -163,10 +164,15 @@ class MazeEnv(Environment, Observable):
                 self.visited.append(self.playerAvatar.coords)
                 reward+=MAZE_REWARD_EXPLORATION
             #coin collection, spawn new coin
+            minDist = len(self.squares)*2
             for coin in self.coins:
+                dist = abs(coin.coords[0]-self.playerAvatar.coords[0]) + abs(coin.coords[1]-self.playerAvatar.coords[1])
+                if dist<minDist:
+                    minDist = dist
                 if coin.coords == self.playerAvatar.coords:
                     markedForDelete.append(coin)
                     reward+=MAZE_REWARD_PER_COIN
+            reward+= -dist * MAZE_REWARD_COIN_DIST #distribute reward based on coin distance
             #check for loss
             if self.gameLength is not None and self.time>=self.gameLength:
                 self.terminated = True #end of game because of time out
@@ -195,16 +201,19 @@ class MazeEnv(Environment, Observable):
         for observer in super().getObservers():
             observer.update(self)
     def calcLogits(self) -> list[float]:
-        LOGIT_EMPTY  = 0.0
-        LOGIT_SOLID  = 1.0
-        LOGIT_COIN   = 2.0
-        LOGIT_PLAYER = 4.0
+        LOGIT_EMPTY     = 0.0
+        LOGIT_VISITED   = 1.0
+        LOGIT_SOLID     = 2.0
+        LOGIT_COIN      = 4.0
+        LOGIT_PLAYER    = 8.0
         #construct logits from world
         logits = []
         for y in range(len(self.squares)):
             logits.append([LOGIT_SOLID] * len(self.squares))
         for y,x in self.emptySquares:
             logits[y][x] = LOGIT_EMPTY
+        for y,x in self.visited:
+            logits[y][x] = LOGIT_VISITED
         for coin in self.coins:
             y,x = coin.coords
             logits[y][x] += LOGIT_COIN
@@ -305,7 +314,7 @@ class TagEnv(Environment, Observable):
         RUNNER_SPEED = 5
         RUNNER_ROTATION_RATE = math.pi/30
         #load hitbox masks
-        RUNNER_HITBOX_FACTORY       = pygame.transform.scale_by(pygame.image.load("img/runner.png"), self.scale).get_rect
+        RUNNER_HITBOX_FACTORY     = pygame.transform.scale_by(pygame.image.load("img/runner.png"), self.scale).get_rect
         self.seekerHitboxFactory  = pygame.transform.scale_by(pygame.image.load("img/seeker.png"), self.scale).get_rect
 
         arenaX, arenaY = arenaDimensions

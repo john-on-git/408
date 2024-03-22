@@ -198,7 +198,6 @@ class DQNAgent(AbstractQAgent):
         return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         if len(observationsThisEpoch)>1: #if we have a transition to add
-            self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-1], rewardsThisEpoch[-1], observationsThisEpoch[-1]))
             #add the transition
             self.replayMemoryS1s.append(observationsThisEpoch[-2])
             self.replayMemoryA1s.append(actionsThisEpoch[-1])
@@ -220,12 +219,11 @@ class DQNAgent(AbstractQAgent):
                 sample = random.sample(range(len(self.replayMemoryS1s)), min(len(self.replayMemoryS1s), int(self.replayMemoryCapacity/self.replayFraction)))
                 for i in sample:
                     miniBatchS1s.append(self.replayMemoryS1s[i])
-                for i in sample:
                     miniBatchAs.append(self.replayMemoryA1s[i])
                     miniBatchRs.append(self.replayMemoryRs[i])
                     miniBatchS2s.append(self.replayMemoryS2s[i])
                 dataset = tf.data.Dataset.from_tensor_slices((miniBatchS1s, miniBatchAs, miniBatchRs, miniBatchS2s))
-                self.fit(dataset, batch_size=int(self.replayMemoryCapacity/(self.replayFraction*100)), callbacks=callbacks) #train on the minibatch
+                self.fit(dataset, batch_size=int(self.replayMemoryCapacity/self.replayFraction), callbacks=callbacks) #train on the minibatch
 #This is similar to DQN, but learns on-policy.
 class SARSAAgent(AbstractQAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1):

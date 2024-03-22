@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-npz = np.load("metrics/metrics_2024.03.22-11.53.44.npz")
+npz = np.load("metrics/PPO_maze_3k_episodes.npz")
 environments = npz["environments"]
 agents = npz["agents"]
 nEpisodes = npz["nEpisodes"][0]
@@ -27,7 +27,7 @@ def plot(target, yss, i,m, label):
         #smooth the curve
         smoothedYs = []
         window = [] 
-        windowSize = 100
+        windowSize = 500
         for y in ys:
             window.append(y)
             if len(window)>windowSize:

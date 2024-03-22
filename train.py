@@ -10,8 +10,8 @@ import os
 
 if __name__ == "__main__":
     RNG_SEED_INIT = 0 #fixed RNG for replicability.
-    N_EPISODES = 2000 #number of episodes to train for
-    N_AGENTS = 1 #used to init metrics. Must be equal to len(agents). There's probably a better way to do this but I don't want to overcomplicate it.
+    N_EPISODES = 200 #number of episodes to train for
+    N_AGENTS = 3 #used to init metrics. Must be equal to len(agents). There's probably a better way to do this but I don't want to overcomplicate it.
 
     startDatetime = datetime.datetime.now()
     environments: list[Environment]
@@ -31,7 +31,7 @@ if __name__ == "__main__":
             #         layers.Dense(8, activation=tf.nn.sigmoid)
             #     ],
             #     validActions=environments[i].validActions,
-            #     learningRate=.001,
+            #     learningRate=.0001,
             #     discountRate=.9,
             #     epsilon=.5,
             #     epsilonDecay=.99,
@@ -42,7 +42,7 @@ if __name__ == "__main__":
             #     actionSpace=environments[i].actionSpace,
             #     hiddenLayers=[layers.Dense(16, activation=tf.nn.sigmoid)],
             #     validActions=environments[i].validActions,
-            #     learningRate=.001,
+            #     learningRate=.0001,
             #     discountRate=.9,
             #     epsilon=.25,
             #     epsilonDecay=.99,
@@ -60,13 +60,41 @@ if __name__ == "__main__":
                 epsilon=.25,
                 epsilonDecay=.99,
                 criticWeight=5,
+                entropyWeight=10
+            ),
+            PPOAgent(
+                actionSpace=environments[i].actionSpace,
+                hiddenLayers=[
+                   layers.Flatten(),
+                   layers.Dense(16, activation=tf.nn.sigmoid)
+                ],
+                validActions=environments[i].validActions,
+                learningRate=.0001,
+                discountRate=.9,
+                epsilon=.25,
+                epsilonDecay=.99,
+                criticWeight=5,
                 entropyWeight=0
+            ),
+            PPOAgent(
+                actionSpace=environments[i].actionSpace,
+                hiddenLayers=[
+                   layers.Flatten(),
+                   layers.Dense(16, activation=tf.nn.sigmoid)
+                ],
+                validActions=environments[i].validActions,
+                learningRate=.0001,
+                discountRate=.9,
+                epsilon=.25,
+                epsilonDecay=.99,
+                criticWeight=5,
+                entropyWeight=-10
             ),
             # ActorCriticAgent(
             #     actionSpace=environments[i].actionSpace,
             #     hiddenLayers=[layers.Dense(16, activation=tf.nn.sigmoid)],
             #     validActions=environments[i].validActions,
-            #     learningRate=.001,
+            #     learningRate=.0001,
             #     discountRate=.9,
             #     epsilon=.25,
             #     epsilonDecay=.99,
@@ -77,7 +105,7 @@ if __name__ == "__main__":
             #     actionSpace=environments[i].actionSpace,
             #     hiddenLayers=[layers.Dense(16, activation=tf.nn.sigmoid)],
             #     validActions=environments[i].validActions,
-            #     learningRate=.001,
+            #     learningRate=.0001,
             #     discountRate=.9,
             #     epsilon=.5,
             #     epsilonDecay=.99
@@ -181,7 +209,7 @@ if __name__ == "__main__":
         for i in range(len(environments)):
             plot(axs[i], metrics, i,0, "reward")
 
-    print("Finished training after", startDatetime.__sub__(datetime.datetime.now()))
+    print("Finished training after", datetime.datetime.now().__sub__(startDatetime))
     plt.show()
 
     input("press any key to continue") #because pyplot fails to show sometimes

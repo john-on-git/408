@@ -90,6 +90,34 @@ if __name__ == "__main__":
                 criticWeight=5,
                 entropyWeight=-10
             ),
+            # PPOAgent(
+            #     actionSpace=environments[i].actionSpace,
+            #     hiddenLayers=[
+            #        layers.Flatten(),
+            #        layers.Dense(16, activation=tf.nn.sigmoid)
+            #     ],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.0001,
+            #     discountRate=.9,
+            #     epsilon=.25,
+            #     epsilonDecay=.99,
+            #     criticWeight=5,
+            #     entropyWeight=0
+            # ),
+            # PPOAgent(
+            #     actionSpace=environments[i].actionSpace,
+            #     hiddenLayers=[
+            #        layers.Flatten(),
+            #        layers.Dense(16, activation=tf.nn.sigmoid)
+            #     ],
+            #     validActions=environments[i].validActions,
+            #     learningRate=.0001,
+            #     discountRate=.9,
+            #     epsilon=.25,
+            #     epsilonDecay=.99,
+            #     criticWeight=5,
+            #     entropyWeight=-10
+            # ),
             # ActorCriticAgent(
             #     actionSpace=environments[i].actionSpace,
             #     hiddenLayers=[layers.Dense(16, activation=tf.nn.sigmoid)],

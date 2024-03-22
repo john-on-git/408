@@ -322,10 +322,10 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
         def l():
             s,a,r,h = data
             p = tf.nn.softmax(self(s)[0][:-1])[a]
-            adv = (r - self(s)[0][-1])
+            adv = r - self(s)[0][-1]
             lA = (adv + self.entropyWeight*h) * tf.math.log(p) #characteristic eligibility. apply_gradients inverts the gradient, so it must be inverted here as well
             lC = adv**2
-            return -(lA - self.criticWeight*lC)
+            return -(lA - self.criticWeight*lC + self.entropyWeight*h)
         self.optimizer.minimize(l, self.trainable_weights)
         return  {"loss": l()} #TODO
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
@@ -380,7 +380,7 @@ class PPOAgent(AbstractActorCriticAgent):
     def train_step(self, data):
         def l():
             s,a,r,h,pOld = data
-            adv = (r - self(s)[0][-1])
+            adv = r - self(s)[0][-1]
             lVF = adv**2
             #calc rt(θ)
             pNew = tf.nn.softmax(self(s)[0][:-1])[a]

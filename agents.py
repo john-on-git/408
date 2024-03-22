@@ -325,7 +325,7 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
             adv = r - self(s)[0][-1]
             lA = (adv + self.entropyWeight*h) * tf.math.log(p) #characteristic eligibility. apply_gradients inverts the gradient, so it must be inverted here as well
             lC = adv**2
-            return -(lA - self.criticWeight*lC + self.entropyWeight*h)
+            return -(lA - self.criticWeight*lC)
         self.optimizer.minimize(l, self.trainable_weights)
         return  {"loss": l()} #TODO
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
@@ -385,9 +385,9 @@ class PPOAgent(AbstractActorCriticAgent):
             #calc rt(θ)
             pNew = tf.nn.softmax(self(s)[0][:-1])[a]
             rt = pNew/pOld
-            lCLIP = tf.minimum(rt * (adv + self.entropyWeight*h), tf.clip_by_value(rt, 1-self.interval, 1+self.interval) * (adv + self.entropyWeight*h))
-
-            return -(lCLIP - self.criticWeight*lVF) #lower bound, clip and stuff. This is the objective function from the paper, so it must be inverted to make it a loss function.
+            lCLIP = tf.minimum(rt * adv, tf.clip_by_value(rt, 1-self.interval, 1+self.interval) * adv)
+            s = self.entropyWeight*h * tf.math.log(pNew)
+            return -(lCLIP - self.criticWeight*lVF + s) #lower bound, clip and stuff. This is the objective function from the paper, so it must be inverted to make it a loss function.
         self.optimizer.minimize(l, self.trainable_weights)
         return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):

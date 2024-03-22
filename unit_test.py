@@ -1,5 +1,5 @@
 import unittest
-from agents import Agent, RandomAgent, PPOAgent, AdvantageActorCriticAgent, ActorCriticAgent, REINFORCE_MENTAgent, DQNAgent
+from agents import Agent, RandomAgent, PPOAgent, AdvantageActorCriticAgent, ActorCriticAgent, REINFORCEAgent, DQNAgent
 from environments import TestBanditEnv, MazeEnv, MazeSquare, MazeCoin, TagEnv, TTTEnv, TTTSearchAgent
 import tensorflow as tf
 from keras import layers
@@ -75,7 +75,7 @@ class TestAgents():
         )
         self.template_test_agent(agent)
     def test_REINFORCE(self):
-        agent = REINFORCE_MENTAgent(
+        agent = REINFORCEAgent(
             actionSpace=[0,1],
             hiddenLayers=[layers.Flatten(), layers.Dense(4, activation=tf.nn.sigmoid)],
             validActions=lambda s: [0,1],

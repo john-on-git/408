@@ -123,17 +123,6 @@ class AbstractActorCriticAgent(Model, Agent):
 
 #policy gradient methods
 #from Simple Statistical Gradient-Following Algorithms for Connectionist Reinforcement Learning, Williams, 1992.
-class REINFORCEAgent(AbstractPolicyAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0.0):
-        super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay, discountRate)
-        self.baseline = baseline
-    def train_step(self, data):
-        def l():
-            s,a,r = data
-            return -(r-self.baseline) * tf.math.log(self(s)[0][a])
-        self.optimizer.minimize(l, self.trainable_weights)
-        return {"loss": l()}
-    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         #epoch ends, reset env, observation, & reward
         if endOfEpoch:
             self.epsilon *= self.epsilonDecay #epsilon decay
@@ -144,7 +133,7 @@ class REINFORCEAgent(AbstractPolicyAgent):
                 rewardsThisEpoch[:-1],
             ))
             self.fit(dataset) #train on the minibatch
-class REINFORCE_MENTAgent(AbstractPolicyAgent):
+class REINFORCEAgent(AbstractPolicyAgent):
     def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0.0, entropyWeight=1):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay, discountRate)
         self.baseline = baseline

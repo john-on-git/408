@@ -180,7 +180,7 @@ if __name__ == "__main__":
         for i in range(len(environments)):
             plot(axs[i], metrics, i,0, "reward")
 
-    print("Finished training after", datetime.datetime.now().__sub__(startDatetime))
+    print("Finished training after", startDatetime.__sub__(datetime.datetime.now()))
     plt.show()
 
     input("press any key to continue") #because pyplot fails to show sometimes

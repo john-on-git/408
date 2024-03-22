@@ -1,6 +1,6 @@
 from time import sleep
 from environments import TagEnv
-from agents import AdvantageActorCriticAgent, REINFORCE_MENTAgent
+from agents import AdvantageActorCriticAgent, REINFORCEAgent
 import tensorflow as tf
 from keras import layers
 import pygame

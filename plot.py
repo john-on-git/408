@@ -1,26 +1,25 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-
-npz = np.load("metrics/PPO_maze_3k_episodes.npz")
+npz = np.load("metrics/metrics_2024.03.23-05.17.36.npz")
 environments = npz["environments"]
 agents = npz["agents"]
 nEpisodes = npz["nEpisodes"][0]
 metrics = npz["data"]
 
-def plot(target, yss, i,m, label):
+def plot(target, i,m, label):
     #baseline/targets
     match environments[i]:
         case "MazeEnv":
-            target.axhline(y=571/2, color="grey")
+            target.axhline(y=4767/2, color="lightgrey")
         case "TagEnv":
-            target.axhline(y=565/2, color="grey")
+            target.axhline(y=565/2, color="lightgrey")
         case "TTTEnv":
             target.axhline(y=1000/2, color="lightgrey")
-    for j in range(len(agents)):
+    for j in range(len(agents[i])):
         ys = []
         for k in range(nEpisodes):
-            ys.append(yss[i][j][k][m])
+            ys.append(metrics[i][j][k][m])
             
         x = range(len(ys))
         
@@ -33,21 +32,22 @@ def plot(target, yss, i,m, label):
             if len(window)>windowSize:
                 window.pop(0)
             smoothedYs.append(sum(window)/windowSize)
-        target.plot(x,smoothedYs, label=agents[j])
-        #m, c = np.polyfit(x,ys,1)
-        #plt.plot(m*x + c) #line of best fit
+        target.plot(x,smoothedYs, label=agents[i][j])
         target.title.set_text(environments[i])
         target.legend()
+        plt.xlabel("Number of Episodes")
+        plt.ylabel(label + " (smoothed)")
 
 #plot return over time for envs/agents
-fig, axs = plt.subplots(nrows=len(environments))
+iter = [0]
+fig, axs = plt.subplots(nrows=len(iter))
 #print
-if len(environments) == 1: #axs is a list, unless the first dimension would be length 1, then it isn't. account for that.
-    plot(axs, metrics, 0,0, "reward")
+if len(iter) == 1: #axs is a list, unless the first dimension would be length 1, then it isn't. account for that.
+    plot(axs, iter[0],0, "reward")
 else:
-    for i in range(len(environments)):
-        plot(axs[i], metrics, i,0, "reward")
-plt.xlabel("Number of Episodes")
-plt.ylabel("Reward (smoothed)")
-#plt.savefig('img/maze_1000.png')
+    i = 0
+    for j in iter:
+        plot(axs[i], j,0, "reward")
+        i+=1
+#plt.savefig('img/CHANGEME.png')
 plt.show()

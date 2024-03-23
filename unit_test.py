@@ -7,7 +7,7 @@ import random
 import numpy as np
 
 #this is the closest thing to a unit test I could come up with
-class TestAgents():
+class TestAgents(unittest.TestCase):
     def template_test_agent(self, agent):
         random.seed(1)
         tf.random.set_seed(1)
@@ -41,6 +41,18 @@ class TestAgents():
             rewardPerEpisode.append(sum(Rs))
         average = sum(rewardPerEpisode[-10:])/10
         self.assertGreater(average, .95)
+    def test_DQN(self):
+        agent = DQNAgent(
+            actionSpace=[0,1],
+            hiddenLayers=[layers.Flatten(), layers.Dense(4, activation=tf.nn.sigmoid)],
+            validActions=lambda s: [0,1],
+            learningRate=.01,
+            epsilon=.5,
+            epsilonDecay=.66,
+            replayMemoryCapacity=200,
+            replayFraction=20
+        )
+        self.template_test_agent(agent)
     def test_PPO(self):
         agent = PPOAgent(
             actionSpace=[0,1],
@@ -84,20 +96,8 @@ class TestAgents():
             epsilonDecay=.66
         )
         self.template_test_agent(agent)
-    def test_DQN(self):
-        agent = DQNAgent(
-            actionSpace=[0,1],
-            hiddenLayers=[layers.Flatten(), layers.Dense(4, activation=tf.nn.sigmoid)],
-            validActions=lambda s: [0,1],
-            learningRate=.01,
-            epsilon=.5,
-            epsilonDecay=.66,
-            replayMemoryCapacity=200,
-            replayFraction=20
-        )
-        self.template_test_agent(agent)
 
-class TestMaze(unittest.TestCase):
+class TestMaze(): #(unittest.TestCase):
     def test_step(self):
         REWARD_PER_COIN = 50
         REWARD_EXPLORATION = 1

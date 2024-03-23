@@ -177,6 +177,7 @@ class DQNAgent(AbstractQAgent):
         self.replayMemoryS2s = []
         self.replayMemoryCapacity = replayMemoryCapacity
         self.replayFraction = replayFraction
+        self.flag = True
     def train_step(self, data):
         def l(): #from atari paper
             s1,a1,r,s2 = data
@@ -187,6 +188,12 @@ class DQNAgent(AbstractQAgent):
         return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
         if len(observationsThisEpoch)>1: #if we have a transition to add
+            #removing this causes a crash (sometimes?).
+            #Probably something to do with the layer initialisation, but .fit just calls this? No clue and no time to fix it.
+            #Might indicate that the whole thing is structured wrong, idk. 🤷‍♂️
+            if self.flag:
+                self.flag = False
+                self.train_step((observationsThisEpoch[-2], actionsThisEpoch[-1], rewardsThisEpoch[-1], observationsThisEpoch[-1]))
             #add the transition
             self.replayMemoryS1s.append(observationsThisEpoch[-2])
             self.replayMemoryA1s.append(actionsThisEpoch[-1])

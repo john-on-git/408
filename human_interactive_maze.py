@@ -2,7 +2,7 @@ from time import sleep
 import pygame
 from environments import MazeEnv
 
-env = MazeEnv(render_mode="human")
+env = MazeEnv(startPosition=[(0,0)],render_mode="human")
 rewardThisEpisode = 0
 totalReward = 0
 nEpisodes = 0

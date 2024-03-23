@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
+from typing import Iterable
 from observer import Observable, Observer
 import math
 import pygame
@@ -55,8 +56,7 @@ class View(ABC):
 #If an agent can't achieve the optimal policy on this, it indicates that there's something wrong with the implementation. 
 class TestBanditEnv(Environment):
     def __init__(self,nMachines:int=2) -> None:
-        super().__init__()
-        self.actionSpace = range(nMachines)
+        super().__init__(range(nMachines))
     def reset(self, seed:int=None) -> tuple[list[float], dict]:
         return ([1], {})
     def step(self, a: int) -> tuple[list[float], int, bool, bool, dict]:
@@ -80,7 +80,7 @@ class MazeCoin(MazeEntity):
     def __init__(self, coords) -> None:
         super().__init__(coords)
 class MazeEnv(Environment, Observable):
-    def __init__(self, render_mode:(None|str)=None, startPosition:(str|tuple)="random", nCoins:int=1, gameLength:int=50, squares=None) -> None:
+    def __init__(self, render_mode:(None|str)=None, startPosition:(str|Iterable[tuple[int,int]])="random", nCoins:int=1, gameLength:int=50, squares=None) -> None:
         """
         Initialize a new MazeEnv.
 
@@ -124,13 +124,12 @@ class MazeEnv(Environment, Observable):
         self.coins = []
         self.visited = []
         if self.initialPlayerPosition=="random":
-            emptySquares = self.emptySquares.copy()
-            for xs in [self.coins]:
-                for x in xs:
-                    emptySquares.remove(x.coords)
-            self.playerAvatar = MazeEntity(coords=self.random.choice(emptySquares))
+            self.playerAvatar = MazeEntity(coords=self.random.choice(self.emptySquares))
+        elif len(self.initialPlayerPosition)==1:
+            self.playerAvatar = MazeEntity(self.initialPlayerPosition[0])
         else:
-            self.playerAvatar = MazeEntity(self.initialPlayerPosition)
+            positions = [position for position in self.initialPlayerPosition if position in self.emptySquares]
+            self.playerAvatar = MazeEntity(self.random.choice(positions))
         self.visited.append(self.playerAvatar.coords)
         for _ in range(self.nCoins): #add coins
             self.placeCoin()
@@ -200,24 +199,28 @@ class MazeEnv(Environment, Observable):
         for observer in super().getObservers():
             observer.update(self)
     def calcLogits(self) -> list[float]:
-        LOGIT_EMPTY     = 0.0
-        LOGIT_VISITED   = 1.0
-        LOGIT_SOLID     = 2.0
-        LOGIT_COIN      = 4.0
-        LOGIT_PLAYER    = 8.0
+        # LOGIT_EMPTY     = 0.0
+        # LOGIT_VISITED   = 1.0
+        # LOGIT_SOLID     = 2.0
+        # LOGIT_COIN      = 4.0
+        # LOGIT_PLAYER    = 8.0
+        LOGIT_PLAYER = 0
+        LOGIT_VISITED = 1
+        LOGIT_COIN = 2
+        LOGIT_SOLID = 3
         #construct logits from world
         logits = []
         for y in range(len(self.squares)):
-            logits.append([LOGIT_SOLID] * len(self.squares))
+            logits.append([[0,0,1,0]] * len(self.squares))
         for y,x in self.emptySquares:
-            logits[y][x] = LOGIT_EMPTY
+             logits[y][x][LOGIT_SOLID] = 0
         for y,x in self.visited:
-            logits[y][x] = LOGIT_VISITED
+            logits[y][x][LOGIT_VISITED] = 1
         for coin in self.coins:
             y,x = coin.coords
-            logits[y][x] += LOGIT_COIN
+            logits[y][x][LOGIT_COIN] = 1
         y,x = self.playerAvatar.coords
-        logits[y][x] += LOGIT_PLAYER
+        logits[y][x][LOGIT_PLAYER] = LOGIT_PLAYER
         return logits
 #view
 class MazeView(View, Observer):
@@ -386,6 +389,7 @@ class TagEnv(Environment, Observable):
                 
             if (self.runner.rect.collidelist([seeker.rect for seeker in self.seekers]) != -1) or (not self.runner.rect.colliderect(self.arena)): #check for collisions
                 self.truncated = True
+                reward = -100
             elif self.time==self.maxTime: #and time out
                 self.terminated = True
         logits = self.calcLogits()

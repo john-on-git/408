@@ -5,18 +5,16 @@ from agents import *
 import tensorflow as tf
 from keras import layers
 
-env = MazeEnv(render_mode="human")
+env = MazeEnv(startPosition=[(0,0)],render_mode="human")
 agent = PPOAgent(
     actionSpace=env.actionSpace,
     hiddenLayers=[
         layers.Flatten(),
-        layers.Dense(16, activation=tf.nn.sigmoid)
+        layers.Dense(32, activation=tf.nn.sigmoid)
     ],
     validActions=env.validActions,
-    learningRate=.001,
-    discountRate=.9,
-    epsilon=.25,
-    epsilonDecay=.99,
+    learningRate=.0,
+    epsilon=0,
 )
 agent.load_weights("checkpoints\MazeEnv_PPOAgent.tf")
 

@@ -157,7 +157,7 @@ class MazeEnv(Environment, Observable):
                 case 4:
                     target = self.playerAvatar.coords                                      #pass
                 case _:
-                    raise Exception("Got invalid action "+str(action)+". Expected (0|1|2|3|4).")
+                    raise Exception(f"Got invalid action {action}. Expected (0|1|2|3|4).")
             #move the player to the target if possible (it must be an empty square inside the game board)
             y,x = target
             if x>=0 and y>=0 and y<len(self.squares) and x<len(self.squares[0]) and self.squares[y][x] == MazeSquare.EMPTY:
@@ -217,16 +217,16 @@ class MazeEnv(Environment, Observable):
         #construct logits from world
         logits = []
         for y in range(len(self.squares)):
-            logits.append([[0,0,0,1]] * len(self.squares))
+            logits.append([[0.0, 0.0, 0.0, 1.0]] * len(self.squares))
         for y,x in self.emptySquares:
-             logits[y][x][LOGIT_SOLID] = 0
+             logits[y][x][LOGIT_SOLID] = 0.0
         for y,x in self.visited:
-            logits[y][x][LOGIT_VISITED] = 1
+            logits[y][x][LOGIT_VISITED] = 1.0
         for coin in self.coins:
             y,x = coin.coords
-            logits[y][x][LOGIT_COIN] = 1
+            logits[y][x][LOGIT_COIN] = 1.0
         y,x = self.playerAvatar.coords
-        logits[y][x][LOGIT_PLAYER] = 1
+        logits[y][x][LOGIT_PLAYER] = 1.0
         return logits
 #view
 class MazeView(View, Observer):
@@ -277,7 +277,8 @@ class MazeView(View, Observer):
 
 #Tag
 TAG_REWARD_PER_STEP = 1
-
+TAG_REWARD_TRUNCATED = -50
+TAG_REWARD_TERMINATED = 0
 class Entity():
     def __init__(self, rect:pygame.Rect, rotation:float=0) -> None:
         self.rect = rect
@@ -300,7 +301,7 @@ class Mover(Entity):
         y = math.sin(self.rotation)*self.speed
         self.rect = self.rect.move(x,y)
 class TagEnv(Environment, Observable):
-    def __init__(self, render_mode:(None|str)=None, maxTime=1000, nSeekers = 1,  speedRatio = 2/3, seekerSpread = 180, seekerMinmaxDistance=(100,200), arenaDimensions=(500,500)) -> None:
+    def __init__(self, render_mode:(None|str)=None, maxTime=1000, nSeekers = 1,  speedRatio = 1/2, seekerSpread = 180, seekerMinmaxDistance=(100,200), arenaDimensions=(750,750)) -> None:
         """
         Initialize a new TagEnv.
 
@@ -394,8 +395,10 @@ class TagEnv(Environment, Observable):
                 
             if (self.runner.rect.collidelist([seeker.rect for seeker in self.seekers]) != -1) or (not self.runner.rect.colliderect(self.arena)): #check for collisions
                 self.truncated = True
+                reward = TAG_REWARD_TRUNCATED
             elif self.time==self.maxTime: #and time out
                 self.terminated = True
+                reward = TAG_REWARD_TERMINATED
         logits = self.calcLogits()
         info = {}
         self.notify() #update view

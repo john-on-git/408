@@ -1,6 +1,0 @@
-[project]
-name="jgw_cs408"
-version="1.0"
-
-[tool.setuptools]
-py-modules = ['img', 'checkpoints', 'human_interactive']

@@ -5,18 +5,17 @@ from agents import *
 import tensorflow as tf
 from keras import layers
 
-env = MazeEnv(startPosition=[(0,0)],render_mode="human")
-agent = PPOAgent(
+env = MazeEnv(render_mode="human")
+agent = REINFORCEAgent(
     actionSpace=env.actionSpace,
-    hiddenLayers=[
-        layers.Flatten(),
-        layers.Dense(32, activation=tf.nn.sigmoid)
-    ],
+    hiddenLayers=[layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Flatten()],
     validActions=env.validActions,
     learningRate=.0,
     epsilon=0,
+    epsilonDecay=0,
+    discountRate=0
 )
-agent.load_weights("checkpoints\MazeEnv_PPOAgent.tf")
+agent.load_weights("checkpoints\MazeEnv_REINFORCEAgent.tf")
 
 observation = tf.expand_dims(tf.convert_to_tensor(env.reset()[0]),0)
 TICK_RATE_HZ = 10

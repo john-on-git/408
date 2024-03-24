@@ -3,20 +3,23 @@ import numpy as np
 import tensorflow as tf
 from keras import layers
 import matplotlib.pyplot as plt
-from environments import Environment, MazeEnv, TagEnv, TTTEnv
+from environments import TagEnv
 from agents import *
 import datetime
 import os
 import multiprocessing as mp
-import gc
+
+RNG_SEED = 0 #fixed RNG for replicability.
+N_EPISODES = 1000 #number of episodes to train for
+N_METRICS = 1 #reward
 
 #it's possible to make these three files one file, but the extra axis would make it really confusing, and this way is more convenient to run
 
 #the parallelism is poorly implemented, but afaik there's no way to pass tf models across threads or processes, since they aren't pickleable.
 #This is the best I could come up with.
 #environment is defined in this function, agents are defined in main
-def train(agentType, agentConfig, rngSeedInit, nEpisodes, nMetrics, metrics):
-    rngSeed=rngSeedInit
+def train(agentType, agentConfig, metrics):
+    rngSeed=RNG_SEED
     random.seed(rngSeed)
     tf.random.set_seed(rngSeed)
     np.random.seed(rngSeed)
@@ -45,7 +48,7 @@ def train(agentType, agentConfig, rngSeedInit, nEpisodes, nMetrics, metrics):
     Ss = []
     As = []
     Rs = []
-    for i in range(nEpisodes):
+    for i in range(N_EPISODES):
         #Losses = []
         observation, _ = environment.reset(rngSeed)
         observation = tf.expand_dims(tf.convert_to_tensor(observation), 0)
@@ -65,11 +68,11 @@ def train(agentType, agentConfig, rngSeedInit, nEpisodes, nMetrics, metrics):
             Ss.append(observation) #record observation for training
             
             agent.handleStep(terminated or truncated, Ss, As, Rs, callbacks=[
-                #tf.keras.callbacks.LambdaCallback(on_episode_end=lambda _, logs: Losses.append(logs["loss"])) #for logging loss as a metric (not used atm)
+                #tf.keras.callbacks.LambdaCallback(on_epoch_end=lambda _, logs: Ls.append(logs.get("loss"))) #for logging loss as a metric (not used atm)
             ])
         #episode finished
         sumRs = sum(Rs)
-        metrics[i + (nMetrics-1)] = sumRs
+        metrics[i * N_METRICS + 0] = sumRs
         print(agentType.__name__, ": Episode ", i, " Done (r = ", sumRs,", ε = ", round(agent.epsilon,2), ")", sep="")
         rngSeed+=1
         Ss.clear()
@@ -85,10 +88,10 @@ if __name__ == "__main__":
     #in order for the child processes to pass them to the agent constructor, all args must be specified, even if they're unused by this agent
     agentConfigs = [
         (PPOAgent, ( #OK
-            [layers.Flatten(), layers.Dense(4, activation=tf.nn.sigmoid)],
+            [layers.Dense(4, activation=tf.nn.sigmoid)],
             0.001, #learning rate, tried; 0.01. 0.01 OK?
-            .5, #epsilon
-            .99, #epsilon decay
+            .05, #epsilon
+            1, #epsilon decay
             .95, #discount rate
             .1, # entropyWeight, 
             5, # criticWeight, tried; 2. 5 OK?
@@ -98,10 +101,10 @@ if __name__ == "__main__":
             0, # replayFraction
         )),
         (AdvantageActorCriticAgent, ( #OK
-            [layers.Flatten(), layers.Dense(4, activation=tf.nn.sigmoid)],
+            [layers.Dense(4, activation=tf.nn.sigmoid)],
             0.001, #learning rate, tried; 0.01. 0.001 OK?
-            .5, #epsilon
-            .99, #epsilon decay
+            .05, #epsilon
+            1, #epsilon decay
             .95, #discount rate
             .1, # entropyWeight, 
             5, # criticWeight, tried; 2. 5 OK?
@@ -111,10 +114,10 @@ if __name__ == "__main__":
             0, # replayFraction
         )),
         (ActorCriticAgent, ( #OK
-            [layers.Flatten(), layers.Dense(4, activation=tf.nn.sigmoid)],
-            0.1, #learning rate tried; 0.01, 0.001, 0.0001.
-            .5, #epsilon
-            .99, #epsilon decay
+            [layers.Dense(4, activation=tf.nn.sigmoid)],
+            0.001, #learning rate tried; 0.01, 0.001, 0.0001.
+            .05, #epsilon
+            1, #epsilon decay
             .95, #discount rate
             .1, # entropyWeight, 
             5, # criticWeight, tried; 2, 5.
@@ -124,10 +127,10 @@ if __name__ == "__main__":
             15, # replayFraction
         )),
         (DQNAgent, (
-            [layers.Flatten(), layers.Dense(4, activation=tf.nn.sigmoid)],
-            0.001, #learning rate, tried; 0.00001, 0.0001.
-            .75, #epsilon
-            .99, #epsilon decay
+            [layers.Dense(4, activation=tf.nn.sigmoid)],
+            0.00001, #learning rate, tried; 0.00001, 0.0001.
+            .05, #epsilon
+            1, #epsilon decay
             .95, #discount rate
             0, # entropyWeight, 
             0, # criticWeight, 
@@ -136,11 +139,11 @@ if __name__ == "__main__":
             2000, # replayMemoryCapacity, 
             20, # replayFraction
         )),
-        (REINFORCEAgent, (
-            [layers.Flatten(), layers.Dense(4, activation=tf.nn.sigmoid)],
+        (REINFORCEAgent, ( #OK
+            [layers.Dense(4, activation=tf.nn.sigmoid)],
             0.001, #learning rate, tried; 0.00001, 0.0001.
-            .5, #epsilon
-            .99, #epsilon decay
+            .05, #epsilon
+            1, #epsilon decay
             .95, #discount rate
             .1, # entropyWeight, 
             0, # criticWeight, 
@@ -151,10 +154,6 @@ if __name__ == "__main__":
         ))
     ]
     
-
-    RNG_SEED = 0 #fixed RNG for replicability.
-    N_EPISODES = 500 #number of episodes to train for
-    N_METRICS = 1 #reward
     metrics = []
     for i in range(len(agentConfigs)):
         metrics.append(mp.Array('d', N_EPISODES * N_METRICS))
@@ -165,9 +164,6 @@ if __name__ == "__main__":
         process = mp.Process(target=train, args=[
             agentConfigs[i][0],
             agentConfigs[i][1],
-            RNG_SEED,
-            N_EPISODES,
-            N_METRICS, 
             metrics[i]
         ])
         processes.append(process)
@@ -182,7 +178,7 @@ if __name__ == "__main__":
         for j in range(N_METRICS):
             nonSharedMetrics[i].append([])
             for k in range(N_EPISODES):
-                nonSharedMetrics[i][j].append(metrics[i][k + (j-1)])
+                nonSharedMetrics[i][j].append(metrics[i][k * N_METRICS + j])
     #finished training all environments
     #write the metrics to file
     metricsDir = os.path.dirname(os.path.abspath(__file__)) + "\\metrics"
@@ -198,13 +194,6 @@ if __name__ == "__main__":
     )
 
     def plot(yss, j, label):
-        match environment.__name__:
-            case "MazeEnv":
-                plt.axhline(y=4767/2, color="grey")
-            case "TagEnv":
-                plt.axhline(y=565/2, color="grey")
-            case "TTTEnv":
-                plt.axhline(y=1000/2, color="lightgrey")
         for i in range(len(agentConfigs)):
             ys = yss[i][j]
             x = range(len(ys))
@@ -229,12 +218,3 @@ if __name__ == "__main__":
     plt.show()
 
     input("press any key to continue") #because pyplot fails to show sometimes
-    #prompt to continue training
-    
-    #n = input("enter number to extend training, non-numeric to end\n")
-    #if(n.isnumeric()):
-    #    resetEpisodes=episodes
-    #    targetEpisodes+=int(n)
-    #else:
-    #    trainingRunning = False
-    #    environments[i].close()

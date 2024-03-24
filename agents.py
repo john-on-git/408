@@ -220,9 +220,9 @@ class DQNAgent(AbstractQAgent):
     def train_step(self, data):
         def l(): #from atari paper
             s1,a1,r,s2 = data
-            q2 = self.discountRate*tf.reduce_max(self(s2)) #estimated q-value for on-policy action for s2
+            q2 = self.discountRate*tf.reduce_max(self(s2)[0]) #estimated q-value for on-policy action for s2
             q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
-            return tf.math.squared_difference(r+q2, q1)
+            return (r+q2-q1)**2
         self.optimizer.minimize(l, self.trainable_weights)
         return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):

@@ -1,3 +1,4 @@
+- Captions go ON TOP of tables, UNDER graphs.
 - Maze Tests.
 	1. Controls Check.
 		- Environment Parameters: render_mode="human", nCoins=0.
@@ -14,7 +15,7 @@
 		- Procedure: Collect as many coins as possible.
 		- Expected:
 			- All collected coins are immediately replaced.
-			- Final score = 50 * number of coins collected.
+			- Final score = 500 * number of coins collected.
 			- No visual errors.
 	3. Exploration.
 		- Environment Parameters: render_mode="human", nCoins=0, rewardDistance=False.

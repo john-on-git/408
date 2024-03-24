@@ -6,15 +6,17 @@ from keras import layers
 import pygame
 
 env = TagEnv(render_mode="human")
-agent = PPOAgent(
+agent = REINFORCEAgent(
+    learningRate=0,
     actionSpace=env.actionSpace,
-    hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)],
+    hiddenLayers=[layers.Dense(4, activation=tf.nn.sigmoid)],
     validActions=env.validActions,
-    learningRate=0
+    epsilon=0,
+    epsilonDecay=0,
+    discountRate=0
 )
-
 #agent = AdvantageActorCriticAgent(learningRate=0, actionSpace=env.ACTION_SPACE, hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)])
-agent.load_weights("checkpoints\TagEnv_PPOAgent.tf")
+agent.load_weights("checkpoints\TagEnv_REINORCEAgent.tf")
 TICK_RATE_HZ = 100
 tickDelay = 1/TICK_RATE_HZ
 countDownLength = 1

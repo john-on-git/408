@@ -1,20 +1,16 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import datetime
 
-npz = np.load("metrics/metrics_2024.03.23-23.52.25.npz")
+npz = np.load("metrics/final/metrics_maze_1k_seed0.npz")
 environment = npz["environments"][0]
 agents = npz["agents"]
 nEpisodes = npz["nEpisodes"][0]
 metrics = npz["data"]
 
+windowSize = nEpisodes/10
+
 def plot(yss, j, label):
-    match environment:
-        case "MazeEnv":
-            plt.axhline(y=4767/2, color="grey")
-        case "TagEnv":
-            plt.axhline(y=565/2, color="grey")
-        case "TTTEnv":
-            plt.axhline(y=1000/2, color="lightgrey")
     for i in range(len(agents)):
         ys = yss[i][j]
         x = range(len(ys))
@@ -22,7 +18,6 @@ def plot(yss, j, label):
         #smooth the curve
         smoothedYs = []
         window = []
-        windowSize = nEpisodes/10
         for y in ys:
             window.append(y)
             if len(window)>windowSize:
@@ -30,8 +25,11 @@ def plot(yss, j, label):
             smoothedYs.append(sum(window)/windowSize)
         plt.plot(x,smoothedYs, label=label + "(" + agents[i] + ")")
         plt.title(environment)
-        plt.legend()
+        plt.xlabel("episodes")
+        plt.ylabel("reward (smoothed)")
+        plt.legend(loc=(0,-0.45))
 
     #plot metrics
 plot(metrics, 0, "reward")
-plt.show()
+#plt.show()
+plt.savefig(f"charts/{environment}_episodes{nEpisodes}_winsize{windowSize}_{datetime.datetime.now().strftime('%Y.%m.%d')}.png", bbox_inches="tight")

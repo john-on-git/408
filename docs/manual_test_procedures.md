@@ -10,17 +10,17 @@
 				- Right Arrow: Agent moves one square left.
 			- No visual errors.
 	2. Collect Coins.
-		- Environment Parameters: render_mode="human", rewardExploration=False.
+		- Environment Parameters: render_mode="human", rewardExploration=False, rewardDistance=False.
 		- Procedure: Collect as many coins as possible.
 		- Expected:
 			- All collected coins are immediately replaced.
 			- Final score = 50 * number of coins collected.
 			- No visual errors.
 	3. Exploration.
-		- Environment Parameters: render_mode="human", nCoins=0.
+		- Environment Parameters: render_mode="human", nCoins=0, rewardDistance=False.
 		- Procedure: Visit every square, then move between the same two tiles repeatedly.
 		- Expected:
-			- Final score = number of empty squares on the grid - 1.
+			- Final score = 50 * (number of unique squares visited - 1).
 			- No visual errors.
 	4. Collide With Edge.
 		- Environment Parameters: render_mode="human", nCoins=0.

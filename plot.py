@@ -1,53 +1,37 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-npz = np.load("metrics/metrics_2024.03.23-05.17.36.npz")
-environments = npz["environments"]
+npz = np.load("metrics/metrics_2024.03.23-23.52.25.npz")
+environment = npz["environments"][0]
 agents = npz["agents"]
 nEpisodes = npz["nEpisodes"][0]
 metrics = npz["data"]
 
-def plot(target, i,m, label):
-    #baseline/targets
-    match environments[i]:
+def plot(yss, j, label):
+    match environment:
         case "MazeEnv":
-            target.axhline(y=4767/2, color="lightgrey")
+            plt.axhline(y=4767/2, color="grey")
         case "TagEnv":
-            target.axhline(y=565/2, color="lightgrey")
+            plt.axhline(y=565/2, color="grey")
         case "TTTEnv":
-            target.axhline(y=1000/2, color="lightgrey")
-    for j in range(len(agents[i])):
-        ys = []
-        for k in range(nEpisodes):
-            ys.append(metrics[i][j][k][m])
-            
+            plt.axhline(y=1000/2, color="lightgrey")
+    for i in range(len(agents)):
+        ys = yss[i][j]
         x = range(len(ys))
-        
+
         #smooth the curve
         smoothedYs = []
-        window = [] 
-        windowSize = 500
+        window = []
+        windowSize = nEpisodes/10
         for y in ys:
             window.append(y)
             if len(window)>windowSize:
                 window.pop(0)
             smoothedYs.append(sum(window)/windowSize)
-        target.plot(x,smoothedYs, label=agents[i][j])
-        target.title.set_text(environments[i])
-        target.legend()
-        plt.xlabel("Number of Episodes")
-        plt.ylabel(label + " (smoothed)")
+        plt.plot(x,smoothedYs, label=label + "(" + agents[i] + ")")
+        plt.title(environment)
+        plt.legend()
 
-#plot return over time for envs/agents
-iter = [0]
-fig, axs = plt.subplots(nrows=len(iter))
-#print
-if len(iter) == 1: #axs is a list, unless the first dimension would be length 1, then it isn't. account for that.
-    plot(axs, iter[0],0, "reward")
-else:
-    i = 0
-    for j in iter:
-        plot(axs[i], j,0, "reward")
-        i+=1
-#plt.savefig('img/CHANGEME.png')
+    #plot metrics
+plot(metrics, 0, "reward")
 plt.show()

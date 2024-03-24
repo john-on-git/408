@@ -15,12 +15,14 @@ class Agent(ABC):
 
 #this agent chooses actions at random w/ equal probability.
 class RandomAgent(Agent):
-    def __init__(self, validActions):
+    def __init__(self, validActions, **kwargs):
         self.epsilon = 1
         self.validActions = validActions
     def act(self, s):
         return random.choice(self.validActions(s))
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
+        pass
+    def save_weights(self, filepath, overwrite=True, save_format=None, options=None):
         pass
 
 class AbstractQAgent(Model, Agent):
@@ -120,21 +122,9 @@ class AbstractActorCriticAgent(Model, Agent):
             for i in validActions:
                 newProbs[i] = probs[i]
             return tfp.distributions.Categorical(probs=newProbs).sample()
-
-#policy gradient methods
-#from Simple Statistical Gradient-Following Algorithms for Connectionist Reinforcement Learning, Williams, 1992.
-        #epoch ends, reset env, observation, & reward
-        if endOfEpoch:
-            self.epsilon *= self.epsilonDecay #epsilon decay
-            #train model
-            dataset = tf.data.Dataset.from_tensor_slices((
-                observationsThisEpoch,
-                actionsThisEpoch,
-                rewardsThisEpoch[:-1],
-            ))
-            self.fit(dataset) #train on the minibatch
+        
 class REINFORCEAgent(AbstractPolicyAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0.0, entropyWeight=1):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0.0, entropyWeight=1, **kwargs):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay, discountRate)
         self.baseline = baseline
         self.entropyWeight = entropyWeight
@@ -145,6 +135,14 @@ class REINFORCEAgent(AbstractPolicyAgent):
         self.optimizer.minimize(l, self.trainable_weights)
         return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
+        def discountedFutureRewards(rs):
+            discRs = [None] * len(rs)
+            r = 0
+            for i in range(len(rs)-1,-1,-1):
+                r*=self.discountRate
+                r+=rs[i]
+                discRs[i] = r
+            return discRs
         def entropies(ss):
             entropies = []
             for s in ss: #sum up the entropy of each state
@@ -161,15 +159,56 @@ class REINFORCEAgent(AbstractPolicyAgent):
             dataset = tf.data.Dataset.from_tensor_slices((
                 observationsThisEpoch[:-1],
                 actionsThisEpoch,
-                rewardsThisEpoch,
+                discountedFutureRewards(rewardsThisEpoch),
+                entropies(observationsThisEpoch[:-1])
+            ))
+            self.fit(dataset) #train on the minibatch
+class REINFORCEAgent(AbstractPolicyAgent):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, baseline=0.0, entropyWeight=1, **kwargs):
+        super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay, discountRate)
+        self.baseline = baseline
+        self.entropyWeight = entropyWeight
+    def train_step(self, data):
+        def l():
+            s,a,r,h = data
+            return -(r - self.baseline + self.entropyWeight*h) * tf.math.log(self(s)[0][a]) #negate, because this is a loss & we are trying to minimize it
+        self.optimizer.minimize(l, self.trainable_weights)
+        return {"loss": l()}
+    def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
+        def discountedFutureRewards(rs):
+            discRs = [None] * len(rs)
+            r = 0
+            for i in range(len(rs)-1,-1,-1):
+                r*=self.discountRate
+                r+=rs[i]
+                discRs[i] = r
+            return discRs
+        def entropies(ss):
+            entropies = []
+            for s in ss: #sum up the entropy of each state
+                entropy = 0
+                p = self(s)[0]
+                for a in range(len(self.actionSpace)):
+                    entropy-= p[a] * tf.math.log(p[a])
+                entropies.append(entropy)
+            return entropies
+        #epoch ends, reset env, observation, & reward
+        if endOfEpoch:
+            self.epsilon *= self.epsilonDecay #epsilon decay
+            #train model
+            dataset = tf.data.Dataset.from_tensor_slices((
+                observationsThisEpoch[:-1],
+                actionsThisEpoch,
+                discountedFutureRewards(rewardsThisEpoch),
                 entropies(observationsThisEpoch[:-1])
             ))
             self.fit(dataset) #train on the minibatch
 
+
 #value-based
 #Replay method from Playing Atari with Deep Reinforcement Learning, Mnih et al (Algorithm 1).
 class DQNAgent(AbstractQAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, replayMemoryCapacity=1000, replayFraction=5):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, replayMemoryCapacity=1000, replayFraction=5, **kwargs):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay, discountRate)
         self.replayMemoryS1s = []
         self.replayMemoryA1s = []   
@@ -183,7 +222,7 @@ class DQNAgent(AbstractQAgent):
             s1,a1,r,s2 = data
             q2 = self.discountRate*tf.reduce_max(self(s2)) #estimated q-value for on-policy action for s2
             q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
-            return (r+q2-q1)*(r+q2-q1) #calculate error between prediction and (approximated) label
+            return (r+(self.discountRate*q2)-q1)**2 #calculate error between prediction and (approximated) label
         self.optimizer.minimize(l, self.trainable_weights)
         return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):
@@ -222,7 +261,7 @@ class DQNAgent(AbstractQAgent):
                 self.fit(dataset, batch_size=int(self.replayMemoryCapacity/self.replayFraction), callbacks=callbacks) #train on the minibatch
 #This is similar to DQN, but learns on-policy.
 class SARSAAgent(AbstractQAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, **kwargs):
         super().__init__(learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay, discountRate)
     def train_step(self, data):
         def l(): #from atari paper
@@ -240,7 +279,7 @@ class SARSAAgent(AbstractQAgent):
 
 #From Actor-Critic Algorithms, Konda & Tsitsiklis, NIPS 1999.
 class ActorCriticAgent(AbstractActorCriticAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, replayMemoryCapacity=1000, replayFraction=5, entropyWeight=1, criticWeight=1):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, replayMemoryCapacity=1000, replayFraction=5, entropyWeight=1, criticWeight=1, **kwargs):
         super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, criticWeight, entropyWeight)
         self.replayMemoryS1s = []
         self.replayMemoryA1s = []
@@ -265,10 +304,10 @@ class ActorCriticAgent(AbstractActorCriticAgent):
             #calculate critic loss (T-D MSE)
             q2 = self.discountRate*tf.reduce_max(self(s2)[0][len(self.actionSpace):]) #estimated Q-value for on-policy action for s2
             q1 = self(s1)[0][len(self.actionSpace):][a] #estimated Q(s,a)
-            lC = (r + self.learningRate*q2 - q1)**2
+            lC = (r + self.discountRate*q2 - q1)**2
 
             #calculate actor loss
-            lA =  (r + self.learningRate*q2) * tf.math.log(tf.nn.softmax(self(s1)[0][:len(self.actionSpace)])[a]) #apply gradients inverts the gradient, so it must be inverted here as well
+            lA =  (r + self.discountRate*q2) * tf.math.log(tf.nn.softmax(self(s1)[0][:len(self.actionSpace)])[a]) #apply gradients inverts the gradient, so it must be inverted here as well
             return -(lA - self.criticWeight*lC + self.entropyWeight*h)
         
         self.optimizer.minimize(l, self.trainable_weights)
@@ -314,7 +353,7 @@ class ActorCriticAgent(AbstractActorCriticAgent):
                 self.fit(dataset) #train on the minibatch
 #Synchronous verson of A3C, From Asynchronous Methods for Deep Reinforcement Learning.
 class AdvantageActorCriticAgent(AbstractActorCriticAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=1, criticWeight=1, tMax=1000):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=1, criticWeight=1, tMax=1000, **kwargs):
         super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, criticWeight, entropyWeight)
         self.tMax = tMax
         #init layers
@@ -373,7 +412,7 @@ class AdvantageActorCriticAgent(AbstractActorCriticAgent):
             self.epsilon *= self.epsilonDecay #epsilon decay
 #from Proximal Policy Optimisation (???) TODO
 class PPOAgent(AbstractActorCriticAgent):
-    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions=None, epsilon=0, epsilonDecay=1, discountRate=1, entropyWeight=1, criticWeight=1, tMax=1000, interval=0.2):
+    def __init__(self, learningRate, actionSpace, hiddenLayers, validActions, epsilon, epsilonDecay, discountRate, entropyWeight=1, criticWeight=2, tMax=1000, interval=0.2, **kwargs):
         super().__init__(learningRate, actionSpace, validActions, epsilon, epsilonDecay, discountRate, criticWeight, entropyWeight)
         self.tMax = tMax
         self.interval = interval

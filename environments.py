@@ -67,7 +67,7 @@ class TestBanditEnv(Environment):
 #Maze
 MAZE_REWARD_PER_COIN = 500
 MAZE_REWARD_COIN_DIST = 1
-MAZE_REWARD_EXPLORATION = 10
+MAZE_REWARD_EXPLORATION = 50
 
 #models
 class MazeSquare(Enum):
@@ -80,7 +80,7 @@ class MazeCoin(MazeEntity):
     def __init__(self, coords) -> None:
         super().__init__(coords)
 class MazeEnv(Environment, Observable):
-    def __init__(self, render_mode:(None|str)=None, startPosition:(str|Iterable[tuple[int,int]])="random", nCoins:int=1, gameLength:int=50, squares=None) -> None:
+    def __init__(self, render_mode:(None|str)=None, startPosition:(str|Iterable[tuple[int,int]])="random", nCoins:int=1, gameLength:int=50, squares=None, rewardDistance=True, rewardExploration=True) -> None:
         """
         Initialize a new MazeEnv.
 
@@ -104,11 +104,15 @@ class MazeEnv(Environment, Observable):
         self.initialPlayerPosition = startPosition
         self.gameLength = gameLength
         self.nCoins = nCoins
+        self.rewardExploration = rewardExploration
+        self.rewardDistance = rewardDistance
         self.emptySquares = [] #pre-calculated for placing entities
         for y in range(len(self.squares)):
             for x in range(len(self.squares[y])):
                 if self.squares[y][x] == MazeSquare.EMPTY:
                     self.emptySquares.append((y,x))
+        self.coins = []
+        self.visited = []
         self.reset()
         if (render_mode=="human"):
             self.view = MazeView(resolution=(500,500), world=self)
@@ -121,8 +125,8 @@ class MazeEnv(Environment, Observable):
         Environment.reset(self,seed)
         self.random = Random(seed)
         self.time = 0
-        self.coins = []
-        self.visited = []
+        self.coins.clear()
+        self.visited.clear()
         if self.initialPlayerPosition=="random":
             self.playerAvatar = MazeEntity(coords=self.random.choice(self.emptySquares))
         elif len(self.initialPlayerPosition)==1:
@@ -160,7 +164,8 @@ class MazeEnv(Environment, Observable):
                 self.playerAvatar.coords = target
             if self.playerAvatar.coords not in self.visited:
                 self.visited.append(self.playerAvatar.coords)
-                reward+=MAZE_REWARD_EXPLORATION
+                if self.rewardExploration:
+                    reward+=MAZE_REWARD_EXPLORATION
             #coin collection, spawn new coin
             minDist = len(self.squares)*2
             for coin in self.coins:
@@ -170,7 +175,8 @@ class MazeEnv(Environment, Observable):
                 if coin.coords == self.playerAvatar.coords:
                     markedForDelete.append(coin)
                     reward+=MAZE_REWARD_PER_COIN
-            reward+= -dist * MAZE_REWARD_COIN_DIST #distribute reward based on coin distance
+            if self.rewardDistance:
+                reward+= -dist * MAZE_REWARD_COIN_DIST #distribute reward based on coin distance
             #check for loss
             if self.gameLength is not None and self.time>=self.gameLength:
                 self.terminated = True #end of game because of time out
@@ -211,7 +217,7 @@ class MazeEnv(Environment, Observable):
         #construct logits from world
         logits = []
         for y in range(len(self.squares)):
-            logits.append([[0,0,1,0]] * len(self.squares))
+            logits.append([[0,0,0,1]] * len(self.squares))
         for y,x in self.emptySquares:
              logits[y][x][LOGIT_SOLID] = 0
         for y,x in self.visited:
@@ -220,7 +226,7 @@ class MazeEnv(Environment, Observable):
             y,x = coin.coords
             logits[y][x][LOGIT_COIN] = 1
         y,x = self.playerAvatar.coords
-        logits[y][x][LOGIT_PLAYER] = LOGIT_PLAYER
+        logits[y][x][LOGIT_PLAYER] = 1
         return logits
 #view
 class MazeView(View, Observer):
@@ -355,7 +361,6 @@ class TagEnv(Environment, Observable):
         self.runner.rect.center = self.runnerInitialPosition
         self.runner.rotation = self.runnerInitialRotation()
 
-        #reset seekers
         self.seekers.clear()
         for _ in range(self.nSeekers):
             seeker = Mover(rect=self.seekerHitboxFactory(), rotation=0, speed=self.seekerSpeed * self.scale)
@@ -389,7 +394,6 @@ class TagEnv(Environment, Observable):
                 
             if (self.runner.rect.collidelist([seeker.rect for seeker in self.seekers]) != -1) or (not self.runner.rect.colliderect(self.arena)): #check for collisions
                 self.truncated = True
-                reward = -100
             elif self.time==self.maxTime: #and time out
                 self.terminated = True
         logits = self.calcLogits()
@@ -476,7 +480,7 @@ class TTTSearchAgent(): #agent that follows the optimal policy by performing a t
         self.epsilonDecay = epsilonDecay
         self.depth=depth
         self.random = random
-    def act(self, s) -> int:
+    def act(self, s) -> int: #state is a tensor, so that the search agent has the same interface as a NN agent, and can be swapped out for one  
         #0.0 = Empty
         #1.0 = Player
         #2.0 = Enemy
@@ -723,18 +727,18 @@ class TTTEnv (Environment, Observable):
                 #/
                 chain = None
                 for i in range(n):
-                        if chain==None:
-                            if self.board[i][n-1-i] != Team.EMPTY: #chain starts
-                                chain = [self.board[i][n-1-i], 1]
-                                if longestChains[chain[0]]<chain[1]:
-                                    longestChains[chain[0]] = chain[1]
-                        else:
-                            if self.board[i][n-1-i] == chain[0]: #chain continues
-                                chain[1]+=1
-                                if longestChains[chain[0]]<chain[1]:
-                                    longestChains[chain[0]] = chain[1]
-                            else: #chain ends
-                                chain = None
+                    if chain==None:
+                        if self.board[i][n-1-i] != Team.EMPTY: #chain starts
+                            chain = [self.board[i][n-1-i], 1]
+                            if longestChains[chain[0]]<chain[1]:
+                                longestChains[chain[0]] = chain[1]
+                    else:
+                        if self.board[i][n-1-i] == chain[0]: #chain continues
+                            chain[1]+=1
+                            if longestChains[chain[0]]<chain[1]:
+                                longestChains[chain[0]] = chain[1]
+                        else: #chain ends
+                            chain = None
 
                 return longestChains
             reward = 0
@@ -762,7 +766,7 @@ class TTTEnv (Environment, Observable):
             return (reward, self.terminated, self.truncated)
         rew, terminated, truncated = halfStep(Team.NOUGHT, action) #handle player action
         if not (terminated or truncated):
-            opponentAction = self.opponent.act(tf.expand_dims(tf.convert_to_tensor(self.calcLogits(Team.CROSS)),0))
+            opponentAction = self.opponent.act(tf.expand_dims(tf.convert_to_tensor(self.calcLogits(Team.CROSS)),0)) #state is a tensor, so that the search agent has the same interface as a NN agent, and can be swapped out for one
             if self.board[int(opponentAction/self.size)][opponentAction%self.size] == Team.EMPTY: #enact move if valid
                 _, terminated, truncated = halfStep(Team.CROSS, opponentAction) #handle CPU action
                 return (self.calcLogits(Team.NOUGHT), rew, terminated, truncated, {})

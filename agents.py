@@ -222,7 +222,7 @@ class DQNAgent(AbstractQAgent):
             s1,a1,r,s2 = data
             q2 = self.discountRate*tf.reduce_max(self(s2)) #estimated q-value for on-policy action for s2
             q1 = self(s1)[0][a1] #estimated q-value for (s,a) yielding r
-            return (r+(self.discountRate*q2)-q1)**2 #calculate error between prediction and (approximated) label
+            return tf.math.squared_difference(r+q2, q1)
         self.optimizer.minimize(l, self.trainable_weights)
         return {"loss": l()}
     def handleStep(self, endOfEpoch, observationsThisEpoch, actionsThisEpoch, rewardsThisEpoch, callbacks=[]):

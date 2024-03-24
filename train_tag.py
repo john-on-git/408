@@ -133,8 +133,8 @@ if __name__ == "__main__":
             0, # criticWeight, 
             0, # tMax, 
             0, # interval, 
-            5000, # replayMemoryCapacity, 
-            10, # replayFraction
+            2000, # replayMemoryCapacity, 
+            20, # replayFraction
         )),
         (REINFORCEAgent, (
             [layers.Flatten(), layers.Dense(4, activation=tf.nn.sigmoid)],

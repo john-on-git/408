@@ -159,63 +159,70 @@ if __name__ == "__main__":
     for i in range(len(agentConfigs)):
         metrics.append(mp.Array('d', N_EPISODES * N_METRICS))
     startDatetime = datetime.datetime.now()
+    anyProcessFailed = mp.Value("i",0) #for stopping the other processes if one fails
     #Pool doesn't work here, throws due to the shared metrics variables ^
+    processes: list[mp.Process]
     processes = []
     for i in range(len(agentConfigs)):
         process = mp.Process(target=train, args=[
             agentConfigs[i][0],
             agentConfigs[i][1],
-            metrics[i]
+            metrics[i],
+            anyProcessFailed
         ])
         processes.append(process)
         process.start()
     for process in processes:
+        if anyProcessFailed.value==1: #if any process failed, the whole batch is ruined.
+            process.kill() #kill 'em all
         process.join()  
         #finished training all agents on this environment
-    
-    nonSharedMetrics = []
-    for i in range(len(agentConfigs)):
-        nonSharedMetrics.append([])
-        for j in range(N_METRICS):
-            nonSharedMetrics[i].append([])
-            for k in range(N_EPISODES):
-                nonSharedMetrics[i][j].append(metrics[i][k * N_METRICS + j])
-    #finished training all environments
-    #write the metrics to file
-    metricsDir = os.path.dirname(os.path.abspath(__file__)) + "\\metrics"
-    os.makedirs(metricsDir, exist_ok=True)
-    metadataAgents = [agentConfig[0].__name__ for agentConfig in agentConfigs]
-    metadataEnvironments = [environment.__name__]
-    np.savez(
-        metricsDir + "\\metrics_" + datetime.datetime.now().strftime("%Y.%m.%d-%H.%M.%S"),
-        agents=metadataAgents,
-        environments=metadataEnvironments,
-        nEpisodes = [N_EPISODES],
-        data=nonSharedMetrics
-    )
-
-    def plot(yss, j, label):
+    if anyProcessFailed.value==1:
+        print("Training crashed.")
+    else:
+        nonSharedMetrics = []
         for i in range(len(agentConfigs)):
-            ys = yss[i][j]
-            x = range(len(ys))
+            nonSharedMetrics.append([])
+            for j in range(N_METRICS):
+                nonSharedMetrics[i].append([])
+                for k in range(N_EPISODES):
+                    nonSharedMetrics[i][j].append(metrics[i][k * N_METRICS + j])
+        #finished training all environments
+        #write the metrics to file
+        metricsDir = os.path.dirname(os.path.abspath(__file__)) + "\\metrics"
+        os.makedirs(metricsDir, exist_ok=True)
+        metadataAgents = [agentConfig[0].__name__ for agentConfig in agentConfigs]
+        metadataEnvironments = [environment.__name__]
+        np.savez(
+            metricsDir + "\\metrics_" + datetime.datetime.now().strftime("%Y.%m.%d-%H.%M.%S"),
+            agents=metadataAgents,
+            environments=metadataEnvironments,
+            nEpisodes = [N_EPISODES],
+            data=nonSharedMetrics
+        )
 
-            #smooth the curve
-            smoothedYs = []
-            window = []
-            windowSize = N_EPISODES/10
-            for y in ys:
-                window.append(y)
-                if len(window)>windowSize:
-                    window.pop(0)
-                smoothedYs.append(sum(window)/windowSize)
-            plt.plot(x,smoothedYs, label=label + "(" + agentConfigs[i][0].__name__ + ")")
-            plt.title(environment.__name__)
-            plt.legend()
+        def plot(yss, j, label):
+            for i in range(len(agentConfigs)):
+                ys = yss[i][j]
+                x = range(len(ys))
 
-    #plot metrics
-    plot(nonSharedMetrics, 0, "reward")
+                #smooth the curve
+                smoothedYs = []
+                window = []
+                windowSize = N_EPISODES/10
+                for y in ys:
+                    window.append(y)
+                    if len(window)>windowSize:
+                        window.pop(0)
+                    smoothedYs.append(sum(window)/windowSize)
+                plt.plot(x,smoothedYs, label=label + "(" + agentConfigs[i][0].__name__ + ")")
+                plt.title(environment.__name__)
+                plt.legend()
 
-    print("Finished training after", datetime.datetime.now().__sub__(startDatetime))
-    plt.show()
+        #plot metrics
+        plot(nonSharedMetrics, 0, "reward")
 
-    input("press any key to continue") #because pyplot fails to show sometimes
+        print("Finished training after", datetime.datetime.now().__sub__(startDatetime))
+        plt.show()
+
+        input("press any key to continue") #because pyplot fails to show sometimes

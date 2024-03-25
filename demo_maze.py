@@ -8,7 +8,7 @@ from keras import layers
 env = MazeEnv(render_mode="human")
 agent = REINFORCEAgent(
     actionSpace=env.actionSpace,
-    hiddenLayers=[layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Flatten()],
+    hiddenLayers=[layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.MaxPooling2D((2,2)), layers.Flatten(), layers.Dense(8)],
     validActions=env.validActions,
     learningRate=.0,
     epsilon=0,

@@ -3,11 +3,12 @@ import pygame
 from environments import MazeEnv
 
 env = MazeEnv(startPosition=[(0,0)],render_mode="human")
-rewardThisEpisode = 0
-totalReward = 0
-nEpisodes = 0
+rewardOverall = 0
+N_EPISODES = 25
 running = True
-while running:
+currentEpisode=0
+while running and currentEpisode<N_EPISODES:
+    rewardThisEpisode = 0
     while running and not env.terminated and not env.truncated:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -28,11 +29,10 @@ while running:
                     case pygame.K_RIGHT:
                         _, reward, _, _, _ = env.step(3)
                         rewardThisEpisode += reward
-    if running:
-        totalReward+=rewardThisEpisode
-        print("reward this episode:", rewardThisEpisode)
-        nEpisodes+=1
-        rewardThisEpisode = 0
-        env.reset()
-print("num episodes:", nEpisodes)
-print("average reward:", 0 if nEpisodes==0 else totalReward/nEpisodes)
+    print(f"reward (episode {currentEpisode+1}):", rewardThisEpisode)
+    currentEpisode+=1
+    rewardOverall+=rewardThisEpisode
+    env.reset()
+env.view.close()
+print("num episodes:", N_EPISODES)
+print("average reward:", 0 if N_EPISODES==0 else rewardOverall/N_EPISODES)

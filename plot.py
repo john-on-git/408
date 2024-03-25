@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 
-npz = np.load("metrics/final/metrics_maze_1k_seed0.npz")
+npz = np.load("metrics/final/metrics_ttt_1k_seed0.npz")
 environment = npz["environments"][0]
 agents = npz["agents"]
 nEpisodes = npz["nEpisodes"][0]
@@ -25,11 +25,12 @@ def plot(yss, j, label):
             smoothedYs.append(sum(window)/windowSize)
         plt.plot(x,smoothedYs, label=label + "(" + agents[i] + ")")
         plt.title(environment)
-        plt.xlabel("episodes")
+        plt.xlabel("episode")
         plt.ylabel("reward (smoothed)")
-        plt.legend(loc=(0,-0.45))
+        plt.legend()
+        print(agents[i],": ",sum(window)/windowSize, " | ",np.round((sum(window)/windowSize)/959 * 100,2),"%",sep="")
 
     #plot metrics
 plot(metrics, 0, "reward")
-#plt.show()
-plt.savefig(f"charts/{environment}_episodes{nEpisodes}_winsize{windowSize}_{datetime.datetime.now().strftime('%Y.%m.%d')}.png", bbox_inches="tight")
+plt.show()
+#plt.savefig(f"charts/{environment}_episodes{nEpisodes}_winsize{windowSize}_{datetime.datetime.now().strftime('%Y.%m.%d')}.png", bbox_inches="tight")

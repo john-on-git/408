@@ -7,6 +7,7 @@ import pygame
 from random import Random
 import tensorflow as tf
 from threading import Thread
+from agents import TTTSearchAgent
 
 class Environment(ABC):
     def __init__(self, actionSpace) -> None:
@@ -52,6 +53,8 @@ class View(ABC):
     def update(self, world):
         pass
 
+
+
 #An extremely simple environment for testing agents.
 #If an agent can't achieve the optimal policy on this, it indicates that there's something wrong with the implementation. 
 class TestBanditEnv(Environment):
@@ -64,11 +67,13 @@ class TestBanditEnv(Environment):
         return ([1], reward, True, False, {})
     def validActions(self, s) -> list[int]:
         return self.actionSpace
+
+
+
 #Maze
 MAZE_REWARD_PER_COIN = 500
 MAZE_REWARD_COIN_DIST = 1
 MAZE_REWARD_EXPLORATION = 50
-
 #models
 class MazeSquare(Enum):
     EMPTY = 0,
@@ -93,7 +98,7 @@ class MazeEnv(Environment, Observable):
         Observable.__init__(self)
         Environment.__init__(self, [0,1,2,3,4])
         #init constants
-        self.squares = squares if squares is not None else [ #TODO should not be hard-coded
+        self.squares = squares if squares != None else [ #TODO should not be hard-coded
             [MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY],
             [MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY],
             [MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.SOLID, MazeSquare.SOLID, MazeSquare.EMPTY, MazeSquare.EMPTY],
@@ -205,11 +210,6 @@ class MazeEnv(Environment, Observable):
         for observer in super().getObservers():
             observer.update(self)
     def calcLogits(self) -> list[float]:
-        # LOGIT_EMPTY     = 0.0
-        # LOGIT_VISITED   = 1.0
-        # LOGIT_SOLID     = 2.0
-        # LOGIT_COIN      = 4.0
-        # LOGIT_PLAYER    = 8.0
         LOGIT_PLAYER = 0
         LOGIT_VISITED = 1
         LOGIT_COIN = 2
@@ -217,7 +217,9 @@ class MazeEnv(Environment, Observable):
         #construct logits from world
         logits = []
         for y in range(len(self.squares)):
-            logits.append([[0.0, 0.0, 0.0, 1.0]] * len(self.squares))
+            logits.append([])
+            for x in range(len(self.squares[y])):
+                logits[y].append([0.0, 0.0, 0.0, 1.0])
         for y,x in self.emptySquares:
              logits[y][x][LOGIT_SOLID] = 0.0
         for y,x in self.visited:
@@ -371,8 +373,9 @@ class TagEnv(Environment, Observable):
         self.notify() #redraw
         return (self.calcLogits(), {}) 
     def step(self, action : (0|1|2) = 1) -> tuple[tuple, int, bool, bool, dict]:
-        reward = TAG_REWARD_PER_STEP #baseline per step
+        reward = 0
         if not self.terminated and not self.truncated:
+            reward+=TAG_REWARD_PER_STEP
             self.time+=1
             #update the runner's angle according to the action
             match action:
@@ -475,164 +478,7 @@ TTT_REWARD_PARTIAL_CHAIN = 2
 TTT_REWARD_WIN = 10
 TTT_REWARD_PER_STEP = 1
 TTT_REWARD_INVALID = -100
-
 #models
-class TTTSearchAgent(): #agent that follows the optimal policy by performing a tree search
-    def  __init__(self, random:Random, epsilon=0, epsilonDecay=1, depth=-1) -> None:
-        self.epsilon=epsilon
-        self.epsilonDecay = epsilonDecay
-        self.depth=depth
-        self.random = random
-    def act(self, s) -> int: #state is a tensor, so that the search agent has the same interface as a NN agent, and can be swapped out for one  
-        #0.0 = Empty
-        #1.0 = Player
-        #2.0 = Enemy
-        def actionSpace(s):
-            actions = []
-            for i in range(len(s[0])):
-                if s[0][i]==0.0:
-                    actions.append(i)
-            return actions
-        def succ(s, a, actor):
-            s = s.copy()
-            s[0][a] = actor
-            return s
-        def isTerminalAndValue(s) -> (int|None): #returns the value if s is terminal, False if it is not
-            def calcLongestChains(board) -> dict[float, int]:
-                longestChains = {1.0:0, 2.0:0}
-                #check horizontals
-                for i in range(n):
-                    chain = None
-                    for j in range(n):
-                        if chain==None:
-                            if board[i][j] != 0.0: #chain starts
-                                chain = [board[i][j], 1]
-                                if longestChains[chain[0]]<chain[1]:
-                                    longestChains[chain[0]] = chain[1]
-                        else:
-                            if board[i][j] == chain[0]: #chain continues
-                                chain[1]+=1
-                                if longestChains[chain[0]]<chain[1]:
-                                    longestChains[chain[0]] = chain[1]
-                            else: #chain ends
-                                chain = None
-                #check verticals
-                for j in range(n):
-                    chain = None
-                    for i in range(n):
-                        if chain==None:
-                            if board[i][j] != 0.0: #chain starts
-                                chain = [board[i][j], 1]
-                                if longestChains[chain[0]]<chain[1]:
-                                    longestChains[chain[0]] = chain[1]
-                        else:
-                            if board[i][j] == chain[0]: #chain continues
-                                chain[1]+=1
-                                if longestChains[chain[0]]<chain[1]:
-                                    longestChains[chain[0]] = chain[1]
-                            else: #chain ends
-                                chain = None
-                #check diagonals
-                #\
-                chain = None
-                for i in range(n):
-                    if chain==None:
-                        if board[i][i] != 0.0: #chain starts
-                            chain = [board[i][i], 1]
-                            if longestChains[chain[0]]<chain[1]:
-                                longestChains[chain[0]] = chain[1]
-                    else:
-                        if board[i][i] == chain[0]: #chain continues
-                            chain[1]+=1
-                            if longestChains[chain[0]]<chain[1]:
-                                longestChains[chain[0]] = chain[1]
-                        else: #chain ends
-                            chain = None
-                #/
-                chain = None
-                for i in range(n):
-                        if chain==None:
-                            if board[i][n-1-i] != 0.0: #chain starts
-                                chain = [board[i][n-1-i], 1]
-                                if longestChains[chain[0]]<chain[1]:
-                                    longestChains[chain[0]] = chain[1]
-                        else:
-                            if board[i][n-1-i] == chain[0]: #chain continues
-                                chain[1]+=1
-                                if longestChains[chain[0]]<chain[1]:
-                                    longestChains[chain[0]] = chain[1]
-                            else: #chain ends
-                                chain = None
-
-                return longestChains
-            
-            #reconstruct board from logits
-            n = int(math.sqrt(len(s[0])))
-            board = []
-            for i in range(n):
-                board.append([])
-                for j in range(n):
-                    board[i].append(s[0][n*i+j])
-            longestChains = calcLongestChains(board)
-
-            if longestChains[1.0]==n:
-                return 999
-            elif longestChains[2.0]==n:
-                return -999
-            else:
-                res = 0
-                for col in board:
-                    for cell in col:
-                        if cell == 0.0:
-                            res = None
-                return res
-        def mini(s, depth, alpha, beta) -> int:
-            if depth == 0:
-                return 0
-            else:
-                tV = isTerminalAndValue(s)
-                if tV==None: #recurse
-                    minScore = float('inf')
-                    for a in actionSpace(s):
-                        minScore = min(minScore, maxi(succ(s,a,2.0), depth-1, alpha, beta))
-                        if minScore<alpha or minScore==-999:
-                            break
-                        beta = min(beta,minScore)
-                    return minScore-1 #-1 time penalty
-                else: #stop if terminal
-                    return tV
-        def maxi(s, depth, alpha, beta) -> int:
-            if depth == 0:
-                return 0
-            else:
-                tV = isTerminalAndValue(s)
-                if tV==None: #recurse
-                    maxScore = -float('inf')
-                    for a in actionSpace(s):
-                        maxScore = max(maxScore, mini(succ(s,a,1.0), depth-1, alpha, beta))
-                        if maxScore>beta or maxScore==999:
-                            break
-                        alpha = max(alpha,maxScore)
-                    return maxScore-1 #-1 time penalty
-                else: #stop if terminal
-                    return tV
-        self.epsilon *= self.epsilonDecay
-        if self.random.random()<self.epsilon: #chance to act randomly
-            valid = []
-            for a in actionSpace(s):
-                if s[0][a] == 0.0:
-                    valid.append(a)
-            return self.random.choice(valid)
-        else:
-            s = s.numpy()
-            maxScore = (None, -float('inf'))
-            for a in actionSpace(s):
-                score = mini(succ(s,a,1.0), self.depth-1, -float('inf'), float('inf')) 
-                if score==999:
-                    return a
-                elif score>maxScore[1]:
-                    maxScore = (a, score)
-            return maxScore[0]
 class Team(Enum):
     EMPTY = 0.0,
     NOUGHT = 1.0,
@@ -749,6 +595,7 @@ class TTTEnv (Environment, Observable):
             actY = int(action/self.size)
             if not self.terminated and not self.truncated:
                 if self.board[actY][actX] == Team.EMPTY: #enact the move if it's valid
+                    reward+=TTT_REWARD_PER_STEP #distribute reward for time
                     self.board[actY][actX] = actor
                     longestChains = calcLongestChains(self.size)
                     if longestChains[actor]==self.size: #end the game if there's a winner
@@ -764,7 +611,6 @@ class TTTEnv (Environment, Observable):
                         reward += TTT_REWARD_PARTIAL_CHAIN**longestChains[actor] #distribute reward for partial chains
                 else:
                     reward = TTT_REWARD_INVALID #distribute negative reward for invalid moves
-                reward+=TTT_REWARD_PER_STEP #distribute reward for time
             self.notify() #update view
             return (reward, self.terminated, self.truncated)
         rew, terminated, truncated = halfStep(Team.NOUGHT, action) #handle player action

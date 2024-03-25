@@ -3,7 +3,7 @@ from environments import TagEnv
 import pygame
 
 
-env = TagEnv(render_mode="human", nSeekers=0, arenaDimensions=(1000,1000))
+env = TagEnv(render_mode="human")
 
 #redraw rate
 TICK_RATE_HZ = 100
@@ -20,10 +20,12 @@ endCountDown = None
 
 #metrics
 rewardOverall = 0
-rewardThisEpoch = 0
-N_EPISODES = 20
-
-for i in range(N_EPISODES):
+N_EPISODES = 2
+running = True
+rs = []
+currentEpisode=0
+while running and currentEpisode<N_EPISODES:
+    rewardThisEpisode = 0
     while endCountDown!=0:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -44,8 +46,8 @@ for i in range(N_EPISODES):
                         timeout = ACTION_DELAY
 
         _, reward, _, _, _ = env.step(action)
-        rewardThisEpoch+=reward
-
+        rewardThisEpisode+=reward
+        rs.append(reward)
         #handle action time out
         if timeout==0:
             action = 1
@@ -65,7 +67,10 @@ for i in range(N_EPISODES):
         sleep(tickDelay)
     env.reset()
     endCountDown = None
-    rewardOverall+=rewardThisEpoch
-    rewardThisEpoch=0
+    rs.clear()
+    print(f"reward (episode {currentEpisode+1}):", rewardThisEpisode)
+    currentEpisode+=1
+    rewardOverall+=rewardThisEpisode
+env.view.close()
 print("num episodes:", N_EPISODES)
 print("average reward:", rewardOverall/N_EPISODES)

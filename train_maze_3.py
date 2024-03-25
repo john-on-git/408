@@ -94,8 +94,8 @@ if __name__ == "__main__":
             .2, #epsilon
             1, #epsilon decay
             .99, #discount rate
-            10, # entropyWeight, 
-            5, # criticWeight, 
+            0.1, # entropyWeight, 
+            8, # criticWeight, 
             1000, # tMax,
             .2, # interval, 
             0, # replayMemoryCapacity, 
@@ -107,8 +107,8 @@ if __name__ == "__main__":
             .2, #epsilon
             1, #epsilon decay
             .99, #discount rate
-            10, # entropyWeight, 
-            5   , # criticWeight, 
+            0.1, # entropyWeight, 
+            8, # criticWeight, 
             1000, # tMax,
             0, # interval, 
             0, # replayMemoryCapacity, 
@@ -120,8 +120,8 @@ if __name__ == "__main__":
             .2, #epsilon
             1, #epsilon decay
             .99, #discount rate
-            10, # entropyWeight, 
-            2, # criticWeight,
+            0.1, # entropyWeight, 
+            2, # criticWeight, 
             0, # tMax, 
             0, # interval, 
             1000, # replayMemoryCapacity, 
@@ -146,7 +146,7 @@ if __name__ == "__main__":
             .2, #epsilon
             1, #epsilon decay
             .99, #discount rate
-            10, # entropyWeight, 
+            0.1, # entropyWeight, 
             0, # criticWeight, 
             0, # tMax, 
             0, # interval, 

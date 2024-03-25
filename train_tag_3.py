@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 from keras import layers
 import matplotlib.pyplot as plt
-from environments import MazeEnv
+from environments import TagEnv
 from agents import *
 import datetime
 import os
@@ -24,27 +24,27 @@ def train(agentType, agentConfig, metrics):
     tf.random.set_seed(rngSeed)
     np.random.seed(rngSeed)
     
-    environment = MazeEnv()
+    environment = TagEnv()
     
     #in order for the child process to pass them to the agent constructor, all args must be specified, even if they're unused by this agent
     hiddenLayers, learningRate, epsilon, epsilonDecay, discountRate, entropyWeight, criticWeight, tMax, interval, replayMemoryCapacity, replayFraction = agentConfig
     agent: Agent
     agent = agentType(
-        learningRate=learningRate,
         actionSpace=environment.actionSpace,
-        hiddenLayers=hiddenLayers,
         validActions=environment.validActions,
+        hiddenLayers=hiddenLayers,
+        learningRate=learningRate,
         epsilon=epsilon,
         epsilonDecay=epsilonDecay,
         discountRate=discountRate,
         entropyWeight=entropyWeight,
         criticWeight=criticWeight,
-        tMax=tMax,
+        tMax = tMax,
         interval=interval,
         replayMemoryCapacity=replayMemoryCapacity,
         replayFraction=replayFraction
     )
-    print("Training new " + type(environment).__name__ + " / " + type(agent).__name__)
+    print("Training new", type(environment).__name__,"/",type(agent).__name__)
     Ss = []
     As = []
     Rs = []
@@ -73,7 +73,7 @@ def train(agentType, agentConfig, metrics):
         #episode finished
         sumRs = sum(Rs)
         metrics[i * N_METRICS + 0] = sumRs
-        print(agentType.__name__+": Episode "+str(i)+" Done (r = "+str(sumRs)+", ε = "+str(round(agent.epsilon,2))+")")
+        print(agentType.__name__, ": Episode ", i, " Done (r = ", sumRs,", ε = ", round(agent.epsilon,2), ")", sep="")
         rngSeed+=1
         Ss.clear()
         As.clear()
@@ -84,69 +84,68 @@ def train(agentType, agentConfig, metrics):
     agent.save_weights(weightsPath, overwrite=True)
 
 if __name__ == "__main__":
-    environment = MazeEnv
+    environment = TagEnv
     #in order for the child processes to pass them to the agent constructor, all args must be specified, even if they're unused by this agent
-    agentConfigs: list[tuple[Agent,tuple]]
     agentConfigs = [
-        (PPOAgent, (
-            [layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Flatten()],
-            .0001, #learning rate
-            .2, #epsilon
+        (PPOAgent, ( #OK
+            [layers.Dense(4, activation=tf.nn.sigmoid)],
+            0.00001, #learning rate, tried; 0.01. 0.01 OK?
+            .05, #epsilon
             1, #epsilon decay
-            .99, #discount rate
-            10, # entropyWeight, 
-            5, # criticWeight, 
+            .95, #discount rate
+            .1, # entropyWeight, 
+            5, # criticWeight, tried; 2. 5 OK?
             1000, # tMax,
             .2, # interval, 
             0, # replayMemoryCapacity, 
             0, # replayFraction
         )),
-        (AdvantageActorCriticAgent, (
-            [layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Flatten()],
-            .0001, #learning rate
-            .2, #epsilon
+        (AdvantageActorCriticAgent, ( #OK
+            [layers.Dense(4, activation=tf.nn.sigmoid)],
+            0.00001, #learning rate, tried; 0.01. 0.001 OK?
+            .05, #epsilon
             1, #epsilon decay
-            .99, #discount rate
-            10, # entropyWeight, 
-            5   , # criticWeight, 
+            .95, #discount rate
+            .1, # entropyWeight, 
+            5, # criticWeight, tried; 2. 5 OK?
             1000, # tMax,
             0, # interval, 
             0, # replayMemoryCapacity, 
             0, # replayFraction
         )),
-        (ActorCriticAgent, (
-            [layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Flatten()],
-            .0001, #learning rate
-            .2, #epsilon
+        (ActorCriticAgent, ( #OK
+            [layers.Dense(4, activation=tf.nn.sigmoid)],
+            0.00001, #learning rate tried; 0.01, 0.001, 0.0001.
+            .05, #epsilon
             1, #epsilon decay
-            .99, #discount rate
-            10, # entropyWeight, 
-            2, # criticWeight,
+            .95, #discount rate
+            .1, # entropyWeight, 
+            5, # criticWeight, tried; 2, 5.
             0, # tMax, 
             0, # interval, 
-            1000, # replayMemoryCapacity, 
-            10, # replayFraction
+            1500, # replayMemoryCapacity, 
+            15, # replayFraction
         )),
         (DQNAgent, (
-            [layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Flatten()],
-            .0001, #learning rate
-            .2, #epsilon
+            [layers.Dense(4, activation=tf.nn.sigmoid)],
+            0.00001, #learning rate, tried; 0.00001, 0.0001.
+            .05, #epsilon
             1, #epsilon decay
-            .99, #discount rate
+            .95, #discount rate
             0, # entropyWeight, 
             0, # criticWeight, 
             0, # tMax, 
             0, # interval, 
-            1000, # replayMemoryCapacity, 
-            10, # replayFraction
+            2000, # replayMemoryCapacity, 
+            20, # replayFraction
         )),
-        (REINFORCEAgent, (
-            [layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.Flatten()],
-            .0001, #learning rate
-            .2, #epsilon
+        (REINFORCEAgent, ( #OK
+            [layers.Dense(4, activation=tf.nn.sigmoid)],
+            0.00001, #learning rate, tried; 0.00001, 0.0001.
+            .05, #epsilon
             1, #epsilon decay
-            .99, #discount rate
-            10, # entropyWeight, 
+            .95, #discount rate
+            .1, # entropyWeight, 
             0, # criticWeight, 
             0, # tMax, 
             0, # interval, 
@@ -154,7 +153,7 @@ if __name__ == "__main__":
             0, # replayFraction
         ))
     ]
-
+    
     metrics = []
     for i in range(len(agentConfigs)):
         metrics.append(mp.Array('d', N_EPISODES * N_METRICS))

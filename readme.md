@@ -1,4 +1,5 @@
 - The agents/algorithms are defined in agents.py, environment code is in environments.py.
+- The code was tested on Python 3.11.3.
 - Remember to install the requirements (pip install -r requirements.txt).
 
 - Running train.py will train new agents.
@@ -8,7 +9,6 @@
     - Ensure that the constants are set correctly.
 - File beginning with demo_ can be used to observe the AI agents playing the game directly.
     - Instantiate the correct agent type & layer structure.
-    - The pre-trained agent weights use: hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid)] //TODO if you're reading this I forgot to include them/update this part
     - Ensure that the correct weight file is loaded (change the file path).
 - Files beginning with human_interactive can be used to play the games directly.
     - Maze: Move using the arrow keys. Collect as many coins as possible.

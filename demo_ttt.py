@@ -36,7 +36,7 @@ while True:
                 #grid coord to action
                 action = x + y*env.size
                 if env.board[y][x] == Team.EMPTY:
-                    env.step(action) #take action
+                    _, reward, _, _, _ , = env.step(action) #take action
                 else:
                     print("Invalid move.")
     sleep(.1)

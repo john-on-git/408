@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 
-npz = np.load("metrics/final/metrics_ttt_1k_seed0.npz")
+npz = np.load("metrics/metrics_2024.03.25-07.38.33.npz")
 environment = npz["environments"][0]
 agents = npz["agents"]
 nEpisodes = npz["nEpisodes"][0]
@@ -28,7 +28,7 @@ def plot(yss, j, label):
         plt.xlabel("episode")
         plt.ylabel("reward (smoothed)")
         plt.legend()
-        print(agents[i],": ",sum(window)/windowSize, " | ",np.round((sum(window)/windowSize)/959 * 100,2),"%",sep="")
+        print(agents[i],": ",sum(window)/windowSize, " | ",np.round((sum(window)/windowSize)/5588 * 100,2),"%",sep="")
 
     #plot metrics
 plot(metrics, 0, "reward")

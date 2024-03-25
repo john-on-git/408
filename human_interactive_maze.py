@@ -2,7 +2,7 @@ from time import sleep
 import pygame
 from environments import MazeEnv
 
-env = MazeEnv(startPosition=[(0,0)],render_mode="human")
+env = MazeEnv(startPositions=[(0,0)],render_mode="human")
 rewardOverall = 0
 N_EPISODES = 25
 running = True

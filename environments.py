@@ -72,7 +72,7 @@ class TestBanditEnv(Environment):
 
 #Maze
 MAZE_REWARD_PER_COIN = 500
-MAZE_REWARD_COIN_DIST = 1
+MAZE_REWARD_COIN_DIST = -1
 MAZE_REWARD_EXPLORATION = 50
 #models
 class MazeSquare(Enum):
@@ -85,7 +85,7 @@ class MazeCoin(MazeEntity):
     def __init__(self, coords) -> None:
         super().__init__(coords)
 class MazeEnv(Environment, Observable):
-    def __init__(self, render_mode:(None|str)=None, startPosition:(str|Iterable[tuple[int,int]])="random", nCoins:int=1, gameLength:int=50, squares=None, rewardDistance=True, rewardExploration=True) -> None:
+    def __init__(self, render_mode:(None|str)=None, startPositions:(str|Iterable[tuple[int,int]])="random", nCoins:int=1, gameLength:int=50, squares=None, rewardDistance=True, rewardExploration=True) -> None:
         """
         Initialize a new MazeEnv.
 
@@ -106,7 +106,7 @@ class MazeEnv(Environment, Observable):
             [MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY],
             [MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY],
         ]
-        self.initialPlayerPosition = startPosition
+        self.initialPlayerPosition = startPositions
         self.gameLength = gameLength
         self.nCoins = nCoins
         self.rewardExploration = rewardExploration
@@ -181,11 +181,10 @@ class MazeEnv(Environment, Observable):
                     markedForDelete.append(coin)
                     reward+=MAZE_REWARD_PER_COIN
             if self.rewardDistance:
-                reward+= -dist * MAZE_REWARD_COIN_DIST #distribute reward based on coin distance
+                reward+= minDist * MAZE_REWARD_COIN_DIST #distribute reward based on coin distance
             #check for loss
             if self.gameLength is not None and self.time>=self.gameLength:
                 self.terminated = True #end of game because of time out
-        #reward = reward
         logits = self.calcLogits()
         info = {}
         
@@ -398,10 +397,10 @@ class TagEnv(Environment, Observable):
                 
             if (self.runner.rect.collidelist([seeker.rect for seeker in self.seekers]) != -1) or (not self.runner.rect.colliderect(self.arena)): #check for collisions
                 self.truncated = True
-                reward = TAG_REWARD_TRUNCATED
+                reward += TAG_REWARD_TRUNCATED
             elif self.time==self.maxTime: #and time out
                 self.terminated = True
-                reward = TAG_REWARD_TERMINATED
+                reward += TAG_REWARD_TERMINATED
         logits = self.calcLogits()
         info = {}
         self.notify() #update view
@@ -599,7 +598,7 @@ class TTTEnv (Environment, Observable):
                     self.board[actY][actX] = actor
                     longestChains = calcLongestChains(self.size)
                     if longestChains[actor]==self.size: #end the game if there's a winner
-                        reward = TTT_REWARD_WIN**self.size #distribute reward for the win
+                        reward += TTT_REWARD_WIN**self.size #distribute reward for the win
                         self.truncated = True
                     else:
                         #end the game as a draw if all cells are full
@@ -610,7 +609,7 @@ class TTTEnv (Environment, Observable):
                                     self.terminated = False
                         reward += TTT_REWARD_PARTIAL_CHAIN**longestChains[actor] #distribute reward for partial chains
                 else:
-                    reward = TTT_REWARD_INVALID #distribute negative reward for invalid moves
+                    reward += TTT_REWARD_INVALID #distribute negative reward for invalid moves
             self.notify() #update view
             return (reward, self.terminated, self.truncated)
         rew, terminated, truncated = halfStep(Team.NOUGHT, action) #handle player action

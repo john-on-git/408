@@ -4,6 +4,7 @@ from keras import layers
 import random
 import tensorflow_probability as tfp
 from abc import ABC, abstractmethod
+import math
 
 class Agent(ABC):
     @abstractmethod

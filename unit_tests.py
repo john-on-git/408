@@ -97,96 +97,96 @@ class TestAgents(unittest.TestCase):
         )
         self.template_test_agent(agent)
 
-class TestMaze(): #(unittest.TestCase):
+class TestMaze(unittest.TestCase):
     def test_step(self):
-        REWARD_PER_COIN = 50
-        REWARD_EXPLORATION = 1
+        REWARD_PER_COIN = 500
+        REWARD_EXPLORATION = 50
+        REWARD_DIST = -1
         SQUARES = [[MazeSquare.EMPTY] * 5] * 4
         SQUARES.append([MazeSquare.SOLID, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY])
 
-        env = MazeEnv(nCoins=0, startPosition=(0,0), squares=SQUARES, gameLength=10)
+        env = MazeEnv(nCoins=0, startPositions=[(0,0)], squares=SQUARES, gameLength=10)
         env.coins.append(MazeCoin((1,0)))
         env.coins.append(MazeCoin((1,1)))
-
+        
         expectedObservation = [
-            [0.0, 4.0, 0.0, 0.0, 0.0],
-            [2.0, 2.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0, 0.0, 0.0],
+            [[0.0, 1.0, 0.0, 0.0], [1.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
         ]
         observation, reward, truncated, terminated, _ = env.step(3) #move right
         self.assertFalse(truncated)
         self.assertFalse(terminated)
         self.assertEqual(observation, expectedObservation)
-        self.assertEqual(reward, REWARD_EXPLORATION)
+        self.assertEqual(reward, REWARD_EXPLORATION + REWARD_DIST*1)
 
         expectedObservation = [
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [2.0, 6.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0, 0.0, 0.0],
+            [[0.0, 1.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 1.0, 0.0], [1.0, 1.0, 1.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
         ]
         observation, reward, truncated, terminated, _ = env.step(2) #move down
         self.assertFalse(truncated)
         self.assertFalse(terminated)
         self.assertEqual(observation, expectedObservation)
-        self.assertEqual(reward, REWARD_EXPLORATION + REWARD_PER_COIN)
+        self.assertEqual(reward, REWARD_EXPLORATION + REWARD_PER_COIN + REWARD_DIST*0)
 
         expectedObservation = [
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [6.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0, 0.0, 0.0],
+            [[0.0, 1.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[1.0, 1.0, 1.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
         ]
         observation, reward, truncated, terminated, _ = env.step(1) #move left
         self.assertFalse(truncated)
         self.assertFalse(terminated)
         self.assertEqual(observation, expectedObservation)
-        self.assertEqual(reward, REWARD_EXPLORATION + REWARD_PER_COIN)
+        self.assertEqual(reward, REWARD_EXPLORATION + REWARD_PER_COIN + REWARD_DIST*0) #actual: 50 (exploration) +  
 
         expectedObservation = [
-            [4.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0, 0.0, 0.0],
+            [[1.0, 1.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 1.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
         ]
         observation, reward, truncated, terminated, _ = env.step(0) #move up
         self.assertFalse(truncated)
         self.assertFalse(terminated)
         self.assertEqual(observation, expectedObservation)
-        self.assertEqual(reward, 0)
+        self.assertEqual(reward, REWARD_DIST*len(SQUARES)*2)
 
         expectedObservation = [
-            [4.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0, 0.0, 0.0],
+            [[1.0, 1.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 1.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
         ]
         observation, reward, truncated, terminated, _ = env.step(4) #pass
         self.assertFalse(truncated)
         self.assertFalse(terminated)
         self.assertEqual(observation, expectedObservation)
-        self.assertEqual(reward, 0)
+        self.assertEqual(reward, REWARD_DIST*len(SQUARES)*2)
         
         #check edge collision
         observation, reward, truncated, terminated, _ = env.step(0) #up
         self.assertFalse(truncated)
         self.assertFalse(terminated)
         self.assertEqual(observation, expectedObservation)
-        self.assertEqual(reward, 0)
+        self.assertEqual(reward, REWARD_DIST*len(SQUARES)*2)
         
-        #check wall collision
         expectedObservation = [
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [4.0, 0.0, 0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0, 0.0, 0.0],
+            [[0.0, 1.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 1.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[1.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
         ]
         env.step(2) #down
         env.step(2) #down
@@ -195,12 +195,12 @@ class TestMaze(): #(unittest.TestCase):
         self.assertTrue(truncated)
         self.assertFalse(terminated)
         self.assertEqual(observation, expectedObservation)
-        self.assertEqual(reward, 0)
+        self.assertEqual(reward, REWARD_DIST*len(SQUARES)*2)
     def test_reset(self):
         SQUARES = [[MazeSquare.EMPTY] * 5] * 4
         SQUARES.append([MazeSquare.SOLID, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY, MazeSquare.EMPTY])
         AGENT_POSITION = (4,4)
-        env = MazeEnv(nCoins=0, squares=SQUARES, startPosition=AGENT_POSITION)
+        env = MazeEnv(nCoins=0, squares=SQUARES, startPositions=([AGENT_POSITION]))
         agent = RandomAgent(env.validActions)
         observation = tf.expand_dims(tf.convert_to_tensor(env.reset()[0]), 0)
         #run a random agent for an episode to mess up the state
@@ -211,11 +211,11 @@ class TestMaze(): #(unittest.TestCase):
             running = not (terminated or truncated)
         #call reset & assert that the state has been properly reset
         expectedObservation = [
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0, 0.0, 4.0],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+            [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 0.0, 0.0]]
         ]
         observation, _ = env.reset()
         self.assertEqual(observation, expectedObservation)
@@ -269,9 +269,6 @@ class TestTTT(unittest.TestCase):
             self.assertEqual(observation[i], 1)
             self.assertEqual(reward, REWARD_TIME + REWARD_PARTIAL_LINE_BASE**1)
             env.reset()
-        #0.0 = Empty
-        #1.0 = Player
-        #2.0 = Enemy
             
         #simulate a partial game to check reward for partial chains
         observation, reward, truncated, terminated, _ = env.step(0)

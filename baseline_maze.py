@@ -15,10 +15,11 @@ running = True
 currentEpisode=0
 terminated = False
 truncated = False
+randomSeed = 0
 N_EPISODES = 100
 while running and currentEpisode<N_EPISODES:
     rewardThisEpisode = 0
-    observation = env.reset()[0]
+    observation = env.reset(randomSeed)[0]
     rngSeed+=1
     while running and not (terminated or truncated):
         observation, reward, terminated, truncated, _ = env.step(agent.act(observation))
@@ -28,6 +29,7 @@ while running and currentEpisode<N_EPISODES:
     print(f"reward (episode {currentEpisode+1}):", rewardThisEpisode)
     currentEpisode+=1
     rewardOverall+=rewardThisEpisode
+    randomSeed+=1
     terminated = False
     truncated = False
     observation, _ = env.reset(rngSeed)

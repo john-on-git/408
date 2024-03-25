@@ -2,6 +2,9 @@ from environments import TTTEnv, TTTSearchAgent
 import tensorflow as tf
 from random import Random
 
+#this code runs the optimal Tic-Tac-Toe agent to determine its average reward.
+#the opponent incudes a random element, so it's kind of hard to predict formally, much easier to take measurements.
+
 rngSeed = 0
 env = TTTEnv()
 agent = TTTSearchAgent(Random(rngSeed), epsilon=0)

@@ -9,6 +9,8 @@ TICK_RATE_HZ = 100
 tickDelay = 1/TICK_RATE_HZ
 
 env = TagEnv(render_mode="human")
+
+#change me!
 agent = PPOAgent(
     learningRate=0,
     actionSpace=env.actionSpace,
@@ -18,7 +20,7 @@ agent = PPOAgent(
     epsilonDecay=0,
     discountRate=0
 )
-agent.load_weights("checkpoints/demo_for_submission/TagEnv_PPOAgent_seed0.tf")
+agent.load_weights("demo_checkpoints/TagEnv_PPOAgent_seed0.tf")
 
 while True:
     terminated = False

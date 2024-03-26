@@ -10,8 +10,11 @@ def opponentStart():
     env.notify()
 
 env = TTTEnv(render_mode="human", opponent=None)
+
+#change me!
 opponent = DQNAgent(epsilon=.1, epsilonDecay=1,learningRate=0, hiddenLayers=[layers.Flatten(), layers.Dense(8,activation=tf.nn.sigmoid)], discountRate=0, actionSpace=env.actionSpace, validActions=env.validActions)
-opponent.load_weights("checkpoints/demo_for_submission/TTTEnv_DQNAgent_seed0.tf")
+opponent.load_weights("demo_checkpoints /TTTEnv_DQNAgent_seed0.tf")
+
 env.opponent = opponent
 
 env.reset()

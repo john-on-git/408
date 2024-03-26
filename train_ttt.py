@@ -164,6 +164,7 @@ if __name__ == "__main__":
     startDatetime = datetime.datetime.now()
     anyProcessFailed = mp.Value("i",0) #for stopping the other processes if one fails
     #Pool doesn't work here, throws due to the shared metrics variables ^
+    os.makedirs("checkpoints", exist_ok=True)
     processes: list[mp.Process]
     processes = []
     for i in range(len(agentConfigs)):

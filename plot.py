@@ -1,8 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime
+import os
 
-npz = np.load("metrics/final/metrics_maze_1k_seed3000.npz")
+npz = np.load("metrics/final/metrics_TagEnv_epochs1000_seed2000.npz")
 environment = npz["environments"][0]
 agents = npz["agents"]
 nEpisodes = npz["nEpisodes"][0]
@@ -11,7 +12,7 @@ metrics = npz["data"]
 windowSize = int(nEpisodes/10)
 
 def plot(yss, j, label):
-    plt.axhline(y=5588, color="lightgrey",label="baseline")
+    plt.axhline(y=1000, color="lightgrey",label="baseline")
     for i in range(len(agents)):
         ys = yss[i][j]
         x = range(len(ys))
@@ -33,4 +34,5 @@ def plot(yss, j, label):
     #plot metrics
 plot(metrics, 0, "reward")
 plt.show()
+#os.makedirs("charts", exist_ok=True)
 #plt.savefig(f"charts/{environment}_episodes{nEpisodes}_winsize{windowSize}_{datetime.datetime.now().strftime('%Y.%m.%d')}.png", bbox_inches="tight")

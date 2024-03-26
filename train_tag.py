@@ -199,7 +199,7 @@ if __name__ == "__main__":
         metadataAgents = [agentConfig[0].__name__ for agentConfig in agentConfigs]
         metadataEnvironments = [environment.__name__]
         np.savez(
-            metricsDir + "\\metrics_" + datetime.datetime.now().strftime("%Y.%m.%d-%H.%M.%S"),
+            metricsDir + f"\\metrics_{environment.__name__}_epochs{N_EPISODES}_seed{RNG_SEED}.npz",
             agents=metadataAgents,
             environments=metadataEnvironments,
             nEpisodes = [N_EPISODES],

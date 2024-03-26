@@ -60,7 +60,8 @@ class TestAgents(unittest.TestCase):
             validActions=lambda s: [0,1],
             learningRate=.01,
             epsilon=.5,
-            epsilonDecay=.66
+            epsilonDecay=.66,
+            discountRate=1
         )
         self.template_test_agent(agent)
     def test_A2C(self):

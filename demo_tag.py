@@ -5,8 +5,11 @@ import tensorflow as tf
 from keras import layers
 import pygame
 
+TICK_RATE_HZ = 100
+tickDelay = 1/TICK_RATE_HZ
+
 env = TagEnv(render_mode="human")
-agent = REINFORCEAgent(
+agent = PPOAgent(
     learningRate=0,
     actionSpace=env.actionSpace,
     hiddenLayers=[layers.Dense(4, activation=tf.nn.sigmoid)],
@@ -15,36 +18,19 @@ agent = REINFORCEAgent(
     epsilonDecay=0,
     discountRate=0
 )
-#agent = AdvantageActorCriticAgent(learningRate=0, actionSpace=env.ACTION_SPACE, hiddenLayers=[layers.Flatten(), layers.Dense(16, activation=tf.nn.sigmoid),layers.Dense(32, activation=tf.nn.sigmoid)])
-agent.load_weights("checkpoints\TagEnv_REINORCEAgent.tf")
-TICK_RATE_HZ = 100
-tickDelay = 1/TICK_RATE_HZ
-countDownLength = 1
-endCountDown = countDownLength
-announcedEnding = False
+agent.load_weights("checkpoints/demo_for_submission/TagEnv_PPOAgent_seed0.tf")
 
-observation = tf.expand_dims(tf.convert_to_tensor(env.reset()[0]),0)
 while True:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            exit()
-    
-    sleep(tickDelay)
-
-    #win and loss logic
-    if endCountDown == 0:
-        env.reset()
-        announcedEnding = False
-        endCountDown = countDownLength
-    elif env.truncated:
-        if not announcedEnding:
-            announcedEnding = True
-            print(f"Agent crashed.")
-        endCountDown-=1
-    elif env.terminated:
-        if not announcedEnding:
-            announcedEnding = True
-            print("Agent won.")
-        endCountDown-=1
-    else:
-        observation = tf.expand_dims(tf.convert_to_tensor(env.step(agent.act(observation))[0]),0)
+    terminated = False
+    truncated = False
+    observation = tf.expand_dims(tf.convert_to_tensor(env.reset()[0]),0)
+    rewardThisEpoch = 0
+    while not (terminated or truncated):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                exit()
+        sleep(tickDelay)
+        observation, reward, terminated, truncated, _ = env.step(agent.act(observation))
+        rewardThisEpoch+=reward
+        observation = tf.expand_dims(tf.convert_to_tensor(observation),0)
+    print("Reward this epoch:",rewardThisEpoch)

@@ -6,16 +6,16 @@ import tensorflow as tf
 from keras import layers
 
 env = MazeEnv(render_mode="human")
-agent = REINFORCEAgent(
+agent = ActorCriticAgent(
     actionSpace=env.actionSpace,
-    hiddenLayers=[layers.Conv2D(4,2,(1,1)), layers.Conv2D(4,2,(1,1)), layers.MaxPooling2D((2,2)), layers.Flatten(), layers.Dense(8)],
+    hiddenLayers=[layers.Conv2D(4,3,(1,1)), layers.Flatten()],
     validActions=env.validActions,
     learningRate=.0,
     epsilon=0,
     epsilonDecay=0,
     discountRate=0
 )
-agent.load_weights("checkpoints\MazeEnv_REINFORCEAgent.tf")
+agent.load_weights("checkpoints\demo_for_submission\MazeEnv_ActorCriticAgent_seed3000.tf")
 
 observation = tf.expand_dims(tf.convert_to_tensor(env.reset()[0]),0)
 TICK_RATE_HZ = 10

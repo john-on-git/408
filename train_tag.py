@@ -81,7 +81,7 @@ def train(agentType, agentConfig, metrics, anyProcessFailed):
             Rs.clear()
         #finished training this agent
         #write the model weights to file
-        weightsPath = "checkpoints\\" + type(environment).__name__ + "_" + type(agent).__name__ + ".tf"
+        weightsPath = f"checkpoints\\{type(environment).__name__}_{type(agent).__name__}_seed{RNG_SEED}.tf"
         agent.save_weights(weightsPath, overwrite=True)
     except Exception as e:
         #inform parent about the crash and then keep crashing
@@ -94,12 +94,12 @@ if __name__ == "__main__":
     agentConfigs = [
         (PPOAgent, ( #OK
             [layers.Dense(4, activation=tf.nn.sigmoid)],
-            0.001, #learning rate, tried; 0.01. 0.01 OK?
+            0.0001, #learning rate, tried; 0.01. 0.01 OK?
             .05, #epsilon
             1, #epsilon decay
             .95, #discount rate
             .1, # entropyWeight, 
-            5, # criticWeight, tried; 2. 5 OK?
+            2, # criticWeight, tried; 2. 5 OK?
             1000, # tMax,
             .2, # interval, 
             0, # replayMemoryCapacity, 
@@ -107,12 +107,12 @@ if __name__ == "__main__":
         )),
         (AdvantageActorCriticAgent, ( #OK
             [layers.Dense(4, activation=tf.nn.sigmoid)],
-            0.001, #learning rate, tried; 0.01. 0.001 OK?
+            0.0001, #learning rate, tried; 0.01. 0.001 OK?
             .05, #epsilon
             1, #epsilon decay
             .95, #discount rate
             .1, # entropyWeight, 
-            5, # criticWeight, tried; 2. 5 OK?
+            2, # criticWeight, tried; 2. 5 OK?
             1000, # tMax,
             0, # interval, 
             0, # replayMemoryCapacity, 
@@ -120,12 +120,12 @@ if __name__ == "__main__":
         )),
         (ActorCriticAgent, ( #OK
             [layers.Dense(4, activation=tf.nn.sigmoid)],
-            0.001, #learning rate tried; 0.01, 0.001, 0.0001.
+            0.0001, #learning rate tried; 0.01, 0.001, 0.0001.
             .05, #epsilon
             1, #epsilon decay
             .95, #discount rate
             .1, # entropyWeight, 
-            5, # criticWeight, tried; 2, 5.
+            2, # criticWeight, tried; 2, 5.
             0, # tMax, 
             0, # interval, 
             1500, # replayMemoryCapacity, 
@@ -133,7 +133,7 @@ if __name__ == "__main__":
         )),
         (DQNAgent, (
             [layers.Dense(4, activation=tf.nn.sigmoid)],
-            0.00001, #learning rate, tried; 0.00001, 0.0001.
+            0.0001, #learning rate, tried; 0.00001, 0.0001.
             .05, #epsilon
             1, #epsilon decay
             .95, #discount rate

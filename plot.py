@@ -2,15 +2,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 
-npz = np.load("metrics/metrics_2024.03.25-07.38.33.npz")
+npz = np.load("metrics/final/metrics_maze_1k_seed3000.npz")
 environment = npz["environments"][0]
 agents = npz["agents"]
 nEpisodes = npz["nEpisodes"][0]
 metrics = npz["data"]
 
-windowSize = nEpisodes/10
+windowSize = int(nEpisodes/10)
 
 def plot(yss, j, label):
+    plt.axhline(y=5588, color="lightgrey",label="baseline")
     for i in range(len(agents)):
         ys = yss[i][j]
         x = range(len(ys))
@@ -27,8 +28,7 @@ def plot(yss, j, label):
         plt.title(environment)
         plt.xlabel("episode")
         plt.ylabel("reward (smoothed)")
-        plt.legend()
-        print(agents[i],": ",sum(window)/windowSize, " | ",np.round((sum(window)/windowSize)/5588 * 100,2),"%",sep="")
+        plt.legend(bbox_to_anchor=(0.6, -0.15))
 
     #plot metrics
 plot(metrics, 0, "reward")

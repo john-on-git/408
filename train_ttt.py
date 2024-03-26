@@ -9,7 +9,7 @@ import datetime
 import os
 import multiprocessing as mp
 
-RNG_SEED = 1000 #fixed RNG for replicability.
+RNG_SEED = 0 #fixed RNG for replicability.
 N_EPISODES = 1000 #number of episodes to train for
 N_METRICS = 1 #reward
 
@@ -80,7 +80,7 @@ def train(agentType, agentConfig, metrics, anyProcessFailed):
             Rs.clear()
         #finished training this agent
         #write the model weights to file
-        weightsPath = "checkpoints\\" + type(environment).__name__ + "_" + type(agent).__name__ + ".tf"
+        weightsPath = f"checkpoints\\{type(environment).__name__}_{type(agent).__name__}_seed{RNG_SEED}.tf"
         agent.save_weights(weightsPath, overwrite=True)
     except Exception as e:
         #inform parent about the crash and then keep crashing
@@ -98,7 +98,7 @@ if __name__ == "__main__":
             1, #epsilon decay
             .9, #discount rate
             .1, # entropyWeight, 
-            5, # criticWeight, 
+            2, # criticWeight, 
             1000, # tMax,
             .2, # interval, 
             0, # replayMemoryCapacity, 
@@ -111,7 +111,7 @@ if __name__ == "__main__":
             1, #epsilon decay
             .9, #discount rate
             .1, # entropyWeight, 
-            5, # criticWeight, 
+            2, # criticWeight, 
             1000, # tMax,
             0, # interval, 
             0, # replayMemoryCapacity, 

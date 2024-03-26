@@ -1,24 +1,21 @@
 from time import sleep
-from environments import TTTEnv, Team, TTTSearchAgent
+from environments import TTTEnv, Team
 from agents import *
 import pygame
 import tensorflow as tf
 
-def opponentAct():
+def opponentStart():
     action = opponent.act(tf.expand_dims(tf.convert_to_tensor(env.calcLogits(Team.CROSS)),0))
-    if env.board[int(action/env.size)][action%env.size] == Team.EMPTY: #enact move if valid
-        s, _, terminated, truncated, _ = env.halfStep(Team.CROSS, action) #handle CPU action
-    else:
-        raise Exception("Tic-Tac-Toe opponent made invalid move.")
-    return (s, None, terminated, truncated, {})
+    env.board[int(action/env.size)][action%env.size] = Team.CROSS
+    env.notify()
 
 env = TTTEnv(render_mode="human", opponent=None)
-opponent = AdvantageActorCriticAgent(epsilon=0, learningRate=0, hiddenLayers=[layers.Flatten(), layers.Dense(16,activation=tf.nn.relu)], discountRate=0, actionSpace=env.actionSpace, validActions=env.validActions)
-opponent.load_weights("checkpoints/TTTEnv_A2C_DEMO.tf")
+opponent = DQNAgent(epsilon=.1, epsilonDecay=1,learningRate=0, hiddenLayers=[layers.Flatten(), layers.Dense(8,activation=tf.nn.sigmoid)], discountRate=0, actionSpace=env.actionSpace, validActions=env.validActions)
+opponent.load_weights("checkpoints/demo_for_submission/TTTEnv_DQNAgent_seed0.tf")
 env.opponent = opponent
 
 env.reset()
-opponentAct() #CPU goes first
+opponentStart() #CPU goes first
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -43,4 +40,4 @@ while True:
     if env.terminated or env.truncated:
         sleep(1)
         _ = env.reset()
-        opponentAct() #CPU goes first
+        opponentStart() #CPU goes first

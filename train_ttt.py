@@ -9,6 +9,7 @@ import datetime
 import os
 import multiprocessing as mp
 
+#agents to be trained and their configuration is determined by agentConfigs in main
 RNG_SEED = 1000 #fixed RNG for replicability.
 N_EPISODES = 1000 #number of episodes to train for
 N_METRICS = 1 #reward

@@ -1,7 +1,7 @@
 This was the honours project for my degree. This suite of Python files uses reinforcement learning to train AI agents to play three games, those games were also developed as part of the project. Several AI algorithms are covered, including Q-learning and Proximal Policy Optimisation.
 The AI players are trained, then their performance is compared. Significant research was required to understand the relevant algorithms, and to design appropriate games and reward schemes.	
 Pictured: Maze, Tag, Tic-Tac-Toe
-![Video game gameplay: A green person moves around a grid in pursuit of coins.](https://i.imgur.com/tADwHlc.gif =33%x) | ![Video game gameplay: a red circle chases a blue circle around, until the blue circle crashes into a wall](https://i.imgur.com/iNQxKeV.gif =33%x) ![Video game gameplay: Tic-Tac-Toe, noughts win](https://i.imgur.com/yhOINDA.gif =33%x) 
+![Video game gameplay: A green person moves around a grid in pursuit of coins.](https://i.imgur.com/tADwHlc.gif "Maze" =33%x) | ![Video game gameplay: a red circle chases a blue circle around, until the blue circle crashes into a wall](https://i.imgur.com/iNQxKeV.gif "Tag" =33%x) ![Video game gameplay: Tic-Tac-Toe, noughts win](https://i.imgur.com/yhOINDA.gif "Tic-Tac-Toe" =33%x) 
 
 Instructions for running the project.
 	- Setting up your environment.

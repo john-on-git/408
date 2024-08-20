@@ -3,9 +3,9 @@ The AI players are trained, then their performance is compared. Significant rese
 Pictured: Maze, Tag, Tic-Tac-Toe
 
 <div>
-	<img style="width:33%" src="https://i.imgur.com/tADwHlc.gif" alt="Video game gameplay: A green person moves around a grid in pursuit of coins.">
-	<img style="width:33%" src="https://i.imgur.com/iNQxKeV.gif" alt="">
-	<img style="width:33%" src="https://i.imgur.com/yhOINDA.gif" alt="Video game gameplay: Tic-Tac-Toe, noughts win">
+	<img style="width:32%" src="https://i.imgur.com/tADwHlc.gif" alt="Video game gameplay: A green person moves around a grid in pursuit of coins.">
+	<img style="width:32%" src="https://i.imgur.com/iNQxKeV.gif" alt="">
+	<img style="width:32%" src="https://i.imgur.com/yhOINDA.gif" alt="Video game gameplay: Tic-Tac-Toe, noughts win">
 </div>
 
 Instructions for running the project.

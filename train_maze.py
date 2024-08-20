@@ -10,7 +10,7 @@ import os
 import multiprocessing as mp
 
 RNG_SEED = 0 #fixed RNG for replicability.
-N_EPISODES = 1000 #number of episodes to train for
+N_EPISODES = 10000 #number of episodes to train for
 N_METRICS = 1 #reward
 
 #it's possible to make these three files one file, but the extra axis would make it really confusing, and this way is more convenient to run
@@ -94,70 +94,70 @@ if __name__ == "__main__":
     agentConfigs: list[tuple[Agent,tuple]]
     agentConfigs = [
         (PPOAgent, (
-            [layers.Conv2D(4,3,(1,1)), layers.Flatten()],
-            .00015, #learning rate
+            [layers.Conv2D(4,3,(1,1)), layers.MaxPool2D((2,2)), layers.Flatten(), layers.Dense(16), layers.Dense(16), layers.Dense(16), layers.Dense(16), layers.Dense(16), layers.Dense(16)],
+            .00001, #learning rate
             .2, #epsilon
             1, #epsilon decay
             .99, #discount rate
             5, # entropyWeight, 
             2, # criticWeight, 
-            10, # tMax,
+            100, # tMax,
             .2, # interval, 
             0, # replayMemoryCapacity, 
             0, # replayFraction
         )),
-        (AdvantageActorCriticAgent, (
-            [layers.Conv2D(4,3,(1,1)), layers.Flatten()],
-            .00015, #learning rate
-            .2, #epsilon
-            1, #epsilon decay
-            .99, #discount rate
-            5, # entropyWeight, 
-            2, # criticWeight, 
-            10, # tMax,
-            0, # interval, 
-            0, # replayMemoryCapacity, 
-            0, # replayFraction
-        )),
-        (ActorCriticAgent, (
-            [layers.Conv2D(4,3,(1,1)), layers.Flatten()],
-            .00015, #learning rate
-            .2, #epsilon
-            1, #epsilon decay
-            .99, #discount rate
-            5, # entropyWeight, 
-            2, # criticWeight, 
-            0, # tMax, 
-            0, # interval, 
-            1000, # replayMemoryCapacity, 
-            10, # replayFraction
-        )),
-        (DQNAgent, (
-            [layers.Conv2D(4,3,(1,1)), layers.Flatten()],
-            .00015, #learning rate
-            .2, #epsilon
-            1, #epsilon decay
-            .99, #discount rate
-            0, # entropyWeight, 
-            0, # criticWeight, 
-            0, # tMax, 
-            0, # interval, 
-            1000, # replayMemoryCapacity, 
-            10, # replayFraction
-        )),
-        (REINFORCEAgent, (
-            [layers.Conv2D(4,3,(1,1)), layers.Flatten()],
-            .00015, #learning rate
-            .2, #epsilon
-            1, #epsilon decay
-            .99, #discount rate
-            5, # entropyWeight, 
-            0, # criticWeight, 
-            0, # tMax, 
-            0, # interval, 
-            0, # replayMemoryCapacity, 
-            0, # replayFraction
-        ))
+        # (AdvantageActorCriticAgent, (
+        #     [layers.Conv2D(4,3,(1,1)), layers.Flatten()],
+        #     .00015, #learning rate
+        #     .2, #epsilon
+        #     1, #epsilon decay
+        #     .99, #discount rate
+        #     5, # entropyWeight, 
+        #     2, # criticWeight, 
+        #     10, # tMax,
+        #     0, # interval, 
+        #     0, # replayMemoryCapacity, 
+        #     0, # replayFraction
+        # )),
+        # (ActorCriticAgent, (
+        #     [layers.Conv2D(4,2,(1,1)), layers.MaxPool2D((2,2)), layers.Flatten(), layers.Dense(16)],
+        #     .0001, #learning rate
+        #     .2, #epsilon
+        #     1, #epsilon decay
+        #     .99, #discount rate
+        #     5, # entropyWeight, 
+        #     2, # criticWeight, 
+        #     0, # tMax, 
+        #     0, # interval, 
+        #     1000, # replayMemoryCapacity, 
+        #     10, # replayFraction
+        # )),
+        # (DQNAgent, (
+        #     [layers.Conv2D(4,3,(1,1)), layers.Flatten()],
+        #     .00015, #learning rate
+        #     .2, #epsilon
+        #     1, #epsilon decay
+        #     .99, #discount rate
+        #     0, # entropyWeight, 
+        #     0, # criticWeight, 
+        #     0, # tMax, 
+        #     0, # interval, 
+        #     1000, # replayMemoryCapacity, 
+        #     10, # replayFraction
+        # )),
+        # (REINFORCEAgent, (
+        #     [layers.Conv2D(4,3,(1,1)), layers.Flatten()],
+        #     .00015, #learning rate
+        #     .2, #epsilon
+        #     1, #epsilon decay
+        #     .99, #discount rate
+        #     5, # entropyWeight, 
+        #     0, # criticWeight, 
+        #     0, # tMax, 
+        #     0, # interval, 
+        #     0, # replayMemoryCapacity, 
+        #     0, # replayFraction
+        # ))
     ]
 
     metrics = []

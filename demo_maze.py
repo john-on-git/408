@@ -8,16 +8,16 @@ from keras import layers
 env = MazeEnv(render_mode="human")
 
 #change me!
-agent = ActorCriticAgent(
+agent = PPOAgent(
     actionSpace=env.actionSpace,
-    hiddenLayers=[layers.Conv2D(4,3,(1,1)), layers.Flatten()],
+    hiddenLayers=[layers.Conv2D(4,3,(1,1)), layers.MaxPool2D((2,2)), layers.Flatten(), layers.Dense(16), layers.Dense(16), layers.Dense(16), layers.Dense(16), layers.Dense(16), layers.Dense(16)],
     validActions=env.validActions,
     learningRate=.0,
-    epsilon=0,
+    epsilon=0.2,
     epsilonDecay=0,
     discountRate=0
 )
-agent.load_weights("demo_checkpoints\MazeEnv_ActorCriticAgent_seed3000.tf")
+agent.load_weights("demo_checkpoints\MazeEnv_PPOAgent_10k.tf")
 
 observation = tf.expand_dims(tf.convert_to_tensor(env.reset()[0]),0)
 TICK_RATE_HZ = 10

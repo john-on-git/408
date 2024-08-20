@@ -2,10 +2,10 @@ This was the honours project for my degree. This suite of Python files uses rein
 The AI players are trained, then their performance is compared. Significant research was required to understand the relevant algorithms, and to design appropriate games and reward schemes.	
 Pictured: Maze, Tag, Tic-Tac-Toe
 
-<div>
-	<img style="width:32%" src="https://i.imgur.com/tADwHlc.gif" alt="Video game gameplay: A green person moves around a grid in pursuit of coins.">
-	<img style="width:32%" src="https://i.imgur.com/iNQxKeV.gif" alt="">
-	<img style="width:32%" src="https://i.imgur.com/yhOINDA.gif" alt="Video game gameplay: Tic-Tac-Toe, noughts win">
+<div style="display:grid;grid-template-columns:33% 33% 33%; ">
+	<div style="display:flex;justify-content:center;align-items:center"><img style="width:100%" src="https://i.imgur.com/tADwHlc.gif" alt="Video game gameplay: A green person moves around a grid in pursuit of coins."></div>
+	<div style="display:flex;justify-content:center;align-items:center"><img style="width:100%" src="https://i.imgur.com/iNQxKeV.gif" alt=""></div>
+	<div style="display:flex;justify-content:center;align-items:center"><img style="width:100%" src="https://i.imgur.com/yhOINDA.gif" alt="Video game gameplay: Tic-Tac-Toe, noughts win"></div>
 </div>
 
 Instructions for running the project.
